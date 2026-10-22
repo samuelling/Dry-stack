@@ -190,6 +190,7 @@ export class Interaction {
 
   pick(stone) {
     this.held = stone;
+    this.heldShape = stone.collider.shape;
     const b = stone.body;
     b.setGravityScale(0, true);
     b.wakeUp();
@@ -233,7 +234,7 @@ export class Interaction {
       const w = this.game.physics.world;
       const start = { x: hit.point.x, y: hit.point.y + 1.6, z: hit.point.z };
       const rot = { x: this.targetQ.x, y: this.targetQ.y, z: this.targetQ.z, w: this.targetQ.w };
-      const sc = w.castShape(start, rot, { x: 0, y: -1, z: 0 }, s.collider.shape, 0, 3.5, true, undefined, undefined, s.collider, s.body);
+      const sc = w.castShape(start, rot, { x: 0, y: -1, z: 0 }, this.heldShape, 0, 3.5, true, undefined, undefined, s.collider, s.body);
       let y = hit.point.y + 0.15;
       if (sc) y = start.y - sc.time_of_impact;
       this.target.set(hit.point.x, y + this.clearance, hit.point.z);

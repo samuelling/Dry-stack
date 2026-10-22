@@ -31,7 +31,7 @@ function facadeMaterial(uTime, nightGlow) {
       .replace('#include <color_fragment>', `#include <color_fragment>
         {
           vec3 n = normalize(vFNorm);
-          float seed = vBld.x; float kind = vBld.y; float floorH = vBld.z; float bay = vBld.w;
+          float seed = vBld.x; float kind = vBld.y; float floorH = vBld.z; float bay = abs(vBld.w); bool shops = vBld.w > 0.0;
           float u = abs(n.z) > 0.5 ? vFPos.x * sign(n.z) : -vFPos.z * sign(n.x);
           float v = vFPos.y - vBase.y;
           fH = 0.0; fRough = 0.85; fMetal = 0.0; fEmit = vec3(0.0);
@@ -47,6 +47,9 @@ function facadeMaterial(uTime, nightGlow) {
           vec2 bf = fract(bc);
           float mortar = 1.0 - smoothstep(0.0, 0.06, min(min(bf.x, 1.0 - bf.x) * 2.7, min(bf.y, 1.0 - bf.y)));
           float bh = hash12(bid + seed * 17.0);
+          float aa = smoothstep(0.18, 0.55, max(fwidth(bc.y), fwidth(bc.x) * 0.4));
+          mortar = mix(mortar, 0.22, aa);
+          bh = mix(bh, 0.5, aa);
           vec3 brick = brickA * (0.78 + 0.4 * bh) * (0.9 + 0.12 * snoise(vec3(vFPos * 3.0)));
           if (kind > 0.5 && kind < 1.5) { // brownstone: smooth ashlar blocks
             vec2 ac = vec2(u / 0.9, v / 0.45); ac.x += mod(floor(ac.y), 2.0) * 0.5;
@@ -62,17 +65,18 @@ function facadeMaterial(uTime, nightGlow) {
           c *= 0.85 + 0.15 * smoothstep(-0.5, 0.5, streak);
           c *= mix(0.7, 1.0, smoothstep(0.0, 1.2, v));
           // windows (street facades only: |n.z| > 0.5 and not the party walls)
-          bool facade = abs(n.z) > 0.5 && vBld.w > 0.0;
+          bool facade = abs(n.z) > 0.5 && bay > 0.0;
           if (facade && kind < 2.5) {
             float fl = floor(v / floorH);
             float fv = fract(v / floorH);
             float bu = u / bay;
             float bi = floor(bu);
             float fu = fract(bu);
-            float win = step(0.3, fu) * step(fu, 0.7) * step(0.28, fv) * step(fv, 0.86) * step(0.5, fl);
+            float groundOK = shops ? step(0.5, fl) : 1.0;
+            float win = step(0.3, fu) * step(fu, 0.7) * step(0.28, fv) * step(fv, 0.86) * groundOK;
             float frame = win * (1.0 - step(0.32, fu) * step(fu, 0.68) * step(0.3, fv) * step(fv, 0.84));
-            float lintel = step(0.27, fu) * step(fu, 0.73) * step(0.86, fv) * step(fv, 0.93) * step(0.5, fl);
-            float sill = step(0.28, fu) * step(fu, 0.72) * step(0.24, fv) * step(fv, 0.28) * step(0.5, fl);
+            float lintel = step(0.27, fu) * step(fu, 0.73) * step(0.86, fv) * step(fv, 0.93) * groundOK;
+            float sill = step(0.28, fu) * step(fu, 0.72) * step(0.24, fv) * step(fv, 0.28) * groundOK;
             vec3 stoneTrim = vec3(0.62, 0.58, 0.5);
             c = mix(c, stoneTrim * (0.9 + 0.1 * snoise(vFPos*4.0)), max(lintel, sill));
             fH += (lintel + sill) * 0.01;
@@ -88,18 +92,18 @@ function facadeMaterial(uTime, nightGlow) {
               fH = 0.0;
               fRough = 0.06; fMetal = 0.6;
               float lit = step(0.55, hash12(vec2(bi * 3.1, fl * 7.7) + seed));
-              fEmit = vec3(1.0, 0.72, 0.42) * lit * uGlow * (0.7 + 0.6 * glassId) * (1.0 - shade * 0.5);
+              fEmit = vec3(1.0, 0.68, 0.38) * lit * uGlow * (0.25 + 0.3 * glassId) * (1.0 - shade * 0.6);
               c = mix(c, vec3(0.85, 0.85, 0.8), max(mb, mu) * 0.9);
               if (max(mb, mu) > 0.5) { fRough = 0.6; fMetal = 0.0; fEmit = vec3(0.0); }
             }
             c = mix(c, vec3(0.88, 0.86, 0.8), frame);
             if (frame > 0.5) { fRough = 0.5; fMetal = 0.0; }
             // ground floor: door bay
-            if (fl < 0.5) {
+            if (fl < 0.5 && shops) {
               float door = step(0.38, fract(u / (bay * 3.0))) * step(fract(u / (bay * 3.0)), 0.5) * step(fv, 0.75);
               c = mix(c, vec3(0.12, 0.09, 0.07), door);
               float shop = step(0.55, fract(u / (bay * 3.0))) * step(fract(u / (bay * 3.0)), 0.95) * step(0.2, fv) * step(fv, 0.7);
-              if (shop > 0.5) { c = vec3(0.04, 0.05, 0.06); fRough = 0.05; fMetal = 0.7; fEmit = vec3(1.0, 0.8, 0.55) * uGlow * 0.6 * step(0.4, hash12(vec2(bi, seed))); }
+              if (shop > 0.5) { c = vec3(0.04, 0.05, 0.06); fRough = 0.05; fMetal = 0.7; fEmit = vec3(1.0, 0.78, 0.5) * uGlow * 0.22 * step(0.4, hash12(vec2(bi, seed))); }
             }
           }
           if (kind > 2.5) { // glass tower curtain wall
@@ -213,7 +217,7 @@ export class City {
 
     // buildings
     const blds = [], cornices = [];
-    const addRow = (x0, x1, zFront, facing, depth, floorsRange, kindsW) => {
+    const addRow = (x0, x1, zFront, facing, depth, floorsRange, kindsW, shops = true) => {
       let x = x0;
       while (x < x1) {
         const w = rand(rng, 5.5, 8.5);
@@ -224,7 +228,7 @@ export class City {
         const kind = kr < kindsW[0] ? 0 : kr < kindsW[0] + kindsW[1] ? 1 : 2;
         const cz = zFront - facing * depth / 2;
         const bay = w / Math.max(2, Math.round(w / 2.2));
-        blds.push(boxWithAttrs(w - 0.04, h, depth, x + w / 2, 0, cz, [rng(), kind, fh, bay], [x, 0, zFront]));
+        blds.push(boxWithAttrs(w - 0.04, h, depth, x + w / 2, 0, cz, [rng(), kind, fh, shops ? bay : -bay], [x, 0, zFront]));
         // cornice
         const cg = new THREE.BoxGeometry(w, 0.45, 0.5); cg.translate(x + w / 2, h - 0.1, zFront + facing * 0.2); cg.deleteAttribute('uv');
         cornices.push(cg);
@@ -234,7 +238,7 @@ export class City {
       }
     };
     // behind the lot (facing +z toward the lot is the back... treat as facade facing +z)
-    addRow(-60, 60, LOT.z0 - 0.6, 1, 12, [3, 5], [0.55, 0.25]);
+    addRow(-60, 60, LOT.z0 - 0.6, 1, 12, [3, 5], [0.55, 0.25], false);
     // across the street, facing -z
     addRow(-60, 60, 17.6, -1, 12, [3, 6], [0.5, 0.3]);
     // side neighbours (party walls face the lot)
@@ -265,7 +269,7 @@ export class City {
 
     // ghost sign on the party wall facing the lot (right neighbour's west face at x = LOT.x1 + 0.2)
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(7, 3.5), new THREE.MeshStandardMaterial({ map: ghostSignTexture(), transparent: true, roughness: 0.95, depthWrite: false }));
-    sign.position.set(LOT.x1 + 0.19, 8.6, -0.5);
+    sign.position.set(LOT.x1 + 0.19, 5.6, -1.2);
     sign.rotation.y = -Math.PI / 2;
     sign.receiveShadow = true;
     scene.add(sign);

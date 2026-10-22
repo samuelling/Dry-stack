@@ -122,8 +122,8 @@ class Game {
     const sc = this.sun.shadow.camera;
     const ext = cfg.length / 2 + 5.5;
     sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.near = 0.5; sc.far = 80;
-    this.sun.shadow.bias = -0.00015;
-    this.sun.shadow.normalBias = 0.02;
+    this.sun.shadow.bias = -0.0003;
+    this.sun.shadow.normalBias = 0.045;
     scene.add(this.sun, this.sun.target);
     this.hemi = new THREE.HemisphereLight(0xbfd4ee, 0x5a4a32, 0.55);
     scene.add(this.hemi);
