@@ -253,6 +253,7 @@ export class Interaction {
 
   pick(stone) {
     this.held = stone;
+    this.placing = false;
     this.effort = 0;
     this.heldShape = stone.collider.shape;
     const b = stone.body;
@@ -273,13 +274,46 @@ export class Interaction {
     this.ring.visible = true; this.drop.visible = true;
   }
 
-  release() {
+  // Setting a stone down is not dropping it: lower it slowly onto whatever is beneath, and only
+  // let go once it is touching and still.
+  release(force = false) {
+    const s = this.held;
+    if (!s || this.placing) return;
+    if (force || this.examining || this.ghosted) { this.finishRelease(); return; }
+    const t = s.body.translation();
+    this.placing = true;
+    this.placeT = 0;
+    this.placeXZ = { x: t.x, z: t.z };
+    this.placeY = t.y;
+    this.ring.visible = true;
+  }
+
+  updatePlacing(dt) {
+    const s = this.held;
+    this.placeT += dt;
+    const touch = this.game.physics.touching(s);
+    const contact = touch.ground || touch.stones.length > 0;
+    const v = s.body.linvel();
+    const still = Math.hypot(v.x, v.y, v.z) < 0.08;
+    // lower at a walking-the-stone-down pace; heavier stones go down a touch slower
+    const speed = THREE.MathUtils.clamp(0.22 / Math.sqrt(Math.max(1, s.mass / 10)), 0.07, 0.22);
+    this.placeY -= speed * dt;
+    const floor = this.landing ? this.landing.y - 0.012 : -Infinity;   // lean slightly into the bed
+    this.placeY = Math.max(this.placeY, floor);
+    this.target.set(this.placeXZ.x, this.placeY, this.placeXZ.z);
+    this.smoothTarget.copy(this.target);
+    const t = s.body.translation();
+    this.ring.position.x = t.x; this.ring.position.z = t.z;
+    if ((contact && this.placeT > 0.1 && (still || this.placeT > 0.5)) || this.placeT > 2.2) this.finishRelease();
+  }
+
+  finishRelease() {
     const s = this.held;
     if (!s) return;
+    this.placing = false;
     const b = s.body;
     b.setGravityScale(1, true);
-    const v = b.linvel();
-    b.setLinvel({ x: v.x * 0.2, y: Math.min(0, v.y) * 0.2, z: v.z * 0.2 }, true);
+    b.setLinvel({ x: 0, y: 0, z: 0 }, true);
     b.setAngvel({ x: 0, y: 0, z: 0 }, true);
     if (this.ghosted) { this.game.physics.setGhost(s, false); this.ghosted = false; }
     this.examining = false;
@@ -320,6 +354,7 @@ export class Interaction {
   update(dt) {
     const s = this.held;
     if (!s) return;
+    if (this.placing) { this.updatePlacing(dt); return; }
     if (this.examining) {
       const cam = this.game.camera;
       const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd);
@@ -380,7 +415,7 @@ export class Interaction {
     // deliver is capped, so heavy stones lag, take time to get going, and give way slowly
     // (or not at all) when they push against something heavier than the hands can shift.
     const m = s.mass;
-    const vmax = THREE.MathUtils.clamp(4.2 * Math.pow(20 / m, 0.9), 0.3, 4.2);
+    const vmax = this.placing ? 0.25 : THREE.MathUtils.clamp(4.2 * Math.pow(20 / m, 0.9), 0.3, 4.2);
     let vx = dx * 12, vy = dy * 12, vz = dz * 12;
     const sp = Math.hypot(vx, vy, vz);
     if (sp > vmax) { vx *= vmax / sp; vy *= vmax / sp; vz *= vmax / sp; }

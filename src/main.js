@@ -563,7 +563,7 @@ class Game {
 
   weather() {
     if (this.weathering) return;
-    if (this.interaction.held) this.interaction.release();
+    if (this.interaction.held) this.interaction.release(true);
     const spec = this.spec;
     this.snapshot = this.stones.map((s) => ({ s, t: { ...s.body.translation() }, r: { ...s.body.rotation() } }));
     const inWall = this.stones.filter((s) => { const t = s.body.translation(); return Math.abs(t.x) < spec.L / 2 + 0.2 && Math.abs(t.z) < spec.base / 2 + 0.15; });
