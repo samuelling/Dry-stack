@@ -144,7 +144,7 @@ class Game {
     this.syncAll(true);
 
     // camera + controls
-    camera.position.set(1.6, spec.ground(0) + 1.75, 4.3);
+    camera.position.set(1.9, spec.ground(0) + 2.1, 3.9);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, spec.ground(0) + 0.35, 0);
     controls.enableDamping = true; controls.dampingFactor = 0.08;

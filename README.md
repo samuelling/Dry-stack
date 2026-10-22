@@ -4,7 +4,7 @@ A quiet 3D game about building a dry stone wall, one stone at a time, with real 
 
 No mortar, no score chasing, no music. Just wind in the grass and birdsong (or traffic hum, or the crackle of snapping shrimp), the pile, the string line, and the next stone.
 
-**Play:** https://samuelling.github.io/dry-stack/
+**Play:** https://samuelling.github.io/Dry-stack/
 
 ## What's in it
 
