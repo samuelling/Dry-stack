@@ -76,7 +76,7 @@ class Game {
 
     const canvas = $('#c');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-    this.maxPR = Math.min(window.devicePixelRatio, cfg.quality === 'high' ? 1.75 : cfg.quality === 'medium' ? 1.25 : 1);
+    this.maxPR = Math.min(window.devicePixelRatio, cfg.quality === 'high' ? 1.5 : 1);
     renderer.setPixelRatio(this.maxPR);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
@@ -163,7 +163,7 @@ class Game {
 
     // post-processing
     const size = this.lite ? new THREE.Vector2(2, 2) : renderer.getDrawingBufferSize(new THREE.Vector2());
-    const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: cfg.quality === 'low' || this.lite ? 0 : 4 });
+    const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: cfg.quality === 'low' || this.lite ? 0 : cfg.quality === 'medium' ? 2 : 4 });
     const composer = new EffectComposer(renderer, rt);
     composer.addPass(new RenderPass(scene, camera));
     if (cfg.quality !== 'low' && !this.lite) {
@@ -764,8 +764,8 @@ class Game {
     this._fa = 0; this._fn = 0;
     const pr = this.renderer.getPixelRatio();
     let next = pr;
-    if (avg > 1 / 32 && pr > (this.lite ? 0.5 : 0.6)) next = Math.max(this.lite ? 0.5 : 0.6, pr - 0.15);
-    else if (avg < 1 / 55 && pr < this.maxPR) next = Math.min(this.maxPR, pr + 0.1);
+    if (avg > 1 / 40 && pr > (this.lite ? 0.5 : 0.6)) next = Math.max(this.lite ? 0.5 : 0.6, pr - 0.15);
+    else if (avg < 1 / 58 && pr < this.maxPR) next = Math.min(this.maxPR, pr + 0.1);
     if (Math.abs(next - pr) > 0.01) { this.renderer.setPixelRatio(next); this.resize(); }
     // Resolution alone isn't enough: if we're pinned at the floor and still slow, shed features.
     const floor = this.lite ? 0.5 : 0.6;
@@ -821,11 +821,8 @@ function detectTier() {
   let tier;
   if (isMobile) tier = 'lite';
   else if (/swiftshader|llvmpipe|software|basic render/i.test(gpu)) tier = 'lite';
-  else if (/intel/i.test(gpu) && !/arc/i.test(gpu)) tier = 'low';
-  else if (/nvidia|geforce|rtx|radeon rx|radeon pro|arc/i.test(gpu)) tier = cores >= 8 && mem >= 8 ? 'high' : 'medium';
-  else if (/apple/i.test(gpu)) tier = cores >= 10 && px < 14e6 ? 'medium' : 'low';
-  else tier = cores >= 8 && mem >= 8 ? 'medium' : 'low';
-  if (tier === 'high' && px > 16e6) tier = 'medium'; // very large displays cost a lot per frame
+  else if (cores <= 4 || mem <= 4) tier = 'low';
+  else tier = 'medium';   // Medium is the sweet spot for nearly every laptop and desktop; High is opt-in
   return { tier, gpu };
 }
 

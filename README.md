@@ -51,7 +51,7 @@ python3 -m http.server 8000
 # open http://localhost:8000
 ```
 
-URL parameters skip the menu, e.g. `?stone=welsh&mode=free&len=3&time=golden&q=high&go=1`. The default is `q=auto`, which picks a tier from the device (GPU, cores, memory, screen) and then eases features off at runtime if the frame rate sags. `q=lite` is the lightest tier (what phones get): no post-processing or soft focus, a cheaper stone and ground shader, lower-poly stones, less grass and fewer trees.
+URL parameters skip the menu, e.g. `?stone=welsh&mode=free&len=3&time=golden&q=high&go=1`. The default is `q=auto`, which picks a tier from the device (phones get Lite, small machines Low, everything else Medium; High is opt-in) and then eases features off at runtime if the frame rate sags. `q=lite` is the lightest tier (what phones get): no post-processing or soft focus, a cheaper stone and ground shader, lower-poly stones, less grass and fewer trees.
 
 ## Code map
 
