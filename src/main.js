@@ -34,7 +34,7 @@ const cfg = {
   mode: params.get('mode') || 'lesson',
   length: parseFloat(params.get('len') || '3'),
   time: params.get('time') || 'afternoon',
-  quality: params.get('q') || (isMobile ? 'lite' : 'high'),
+  quality: params.get('q') || 'auto',
 };
 if (!STONE_TYPES[cfg.stone]) cfg.stone = 'newengland';
 
@@ -68,6 +68,8 @@ class Game {
   async build(audio) {
     const cfg = this.cfg;
     this.lite = cfg.quality === 'lite';
+    this.direct = this.lite;     // render straight to the canvas, skipping the composer
+    this.easeLevel = 0; this.slowWindows = 0;
     perf.lite = this.lite;
     const setLoad = async (t) => { $('#loadText').textContent = t; await nextFrame(); };
     await setLoad('Clearing the ground…');
@@ -656,7 +658,7 @@ class Game {
     const w = window.innerWidth, h = window.innerHeight;
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
-    if (!this.lite) { this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h); }
+    if (!this.direct) { this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h); }
   }
 
   moveCamera(dt) {
@@ -749,7 +751,7 @@ class Game {
       if (this.ui.tab === 'notes') this.ui.renderNotes(m, this.spec);
       this.updateJointMarkers();
     }
-    if (!params.get('norender')) { if (this.lite) this.renderer.render(this.scene, this.camera); else this.composer.render(dt); }
+    if (!params.get('norender')) { if (this.direct) this.renderer.render(this.scene, this.camera); else this.composer.render(dt); }
     this.adapt(dt);
   }
 
@@ -765,6 +767,34 @@ class Game {
     if (avg > 1 / 32 && pr > (this.lite ? 0.5 : 0.6)) next = Math.max(this.lite ? 0.5 : 0.6, pr - 0.15);
     else if (avg < 1 / 55 && pr < this.maxPR) next = Math.min(this.maxPR, pr + 0.1);
     if (Math.abs(next - pr) > 0.01) { this.renderer.setPixelRatio(next); this.resize(); }
+    // Resolution alone isn't enough: if we're pinned at the floor and still slow, shed features.
+    const floor = this.lite ? 0.5 : 0.6;
+    if (avg > 1 / 26 && pr <= floor + 0.01) { if (++this.slowWindows >= 2) { this.slowWindows = 0; this.ease(); } }
+    else this.slowWindows = 0;
+  }
+
+  // One notch of graceful degradation, no rebuild and no lost wall.
+  ease() {
+    const lvl = ++this.easeLevel;
+    const dropShadowMap = (n) => {
+      this.sun.shadow.mapSize.set(n, n);
+      if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
+    };
+    if (lvl === 1) {
+      if (this.gtao) this.gtao.enabled = false;
+      if (this.bokeh) this.bokeh.enabled = false;
+    } else if (lvl === 2) {
+      this.direct = true; // drops the composer: no grade, no post
+      this.renderer.setPixelRatio(Math.min(this.renderer.getPixelRatio(), 1)); this.resize();
+    } else if (lvl === 3) {
+      const g = this.env.grass; if (g) g.count = Math.floor(g.count * 0.45);
+      if (this.sun.shadow.mapSize.x > 1024) dropShadowMap(1024);
+    } else if (lvl === 4) {
+      const g = this.env.grass; if (g) g.count = Math.floor(g.count * 0.4);
+      if (this.env.trees) this.env.trees.visible = false;
+      dropShadowMap(512);
+    } else return;
+    this.ui?.toast('Easing the graphics a little for smoother play', 2200);
   }
 
   run() {
@@ -772,6 +802,31 @@ class Game {
     const loop = () => { this.frame(); requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   }
+}
+
+// ------------------------------------------------------------------ auto detail
+// Pick a starting detail tier from what the browser will tell us about the device.
+// (Runtime easing in Game.adapt() then handles whatever the guess got wrong.)
+function detectTier() {
+  let gpu = '';
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+    gpu = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+  } catch (e) { /* no gl info */ }
+  const cores = navigator.hardwareConcurrency || 4;
+  const mem = navigator.deviceMemory || 8;
+  const dpr = window.devicePixelRatio || 1;
+  const px = window.screen.width * window.screen.height * dpr * dpr;
+  let tier;
+  if (isMobile) tier = 'lite';
+  else if (/swiftshader|llvmpipe|software|basic render/i.test(gpu)) tier = 'lite';
+  else if (/intel/i.test(gpu) && !/arc/i.test(gpu)) tier = 'low';
+  else if (/nvidia|geforce|rtx|radeon rx|radeon pro|arc/i.test(gpu)) tier = cores >= 8 && mem >= 8 ? 'high' : 'medium';
+  else if (/apple/i.test(gpu)) tier = cores >= 10 && px < 14e6 ? 'medium' : 'low';
+  else tier = cores >= 8 && mem >= 8 ? 'medium' : 'low';
+  if (tier === 'high' && px > 16e6) tier = 'medium'; // very large displays cost a lot per frame
+  return { tier, gpu };
 }
 
 // ------------------------------------------------------------------ menu
@@ -807,6 +862,8 @@ function buildMenu() {
     wrap.appendChild(b);
   }
   blurb.textContent = STONE_TYPES[cfg.stone].blurb;
+  const auto = $('#qualSeg [data-v="auto"]');
+  if (auto) auto.textContent = 'Auto · ' + detectTier().tier;
   seg('#modeSeg', 'mode'); seg('#lenSeg', 'length'); seg('#timeSeg', 'time'); seg('#qualSeg', 'quality');
 }
 
@@ -850,6 +907,7 @@ function renderThumbs() {
 }
 
 async function begin(audio) {
+  if (cfg.quality === 'auto') { const d = detectTier(); cfg.quality = d.tier; cfg.autoPicked = d; console.info('auto detail:', d.tier, '|', d.gpu); }
   $('#menu').classList.add('hidden');
   $('#loading').classList.remove('hidden');
   const game = new Game(cfg);
