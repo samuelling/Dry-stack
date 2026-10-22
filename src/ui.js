@@ -127,6 +127,15 @@ export class UI {
     else { el.textContent = 'clear of everything'; el.className = ''; }
   }
 
+  effort(e, mass) {
+    let el = document.getElementById('effort');
+    if (!el) { el = document.createElement('span'); el.id = 'effort'; el.innerHTML = '<i></i><b></b>'; document.getElementById('holdName').after(el); }
+    el.firstChild.style.width = Math.round(e * 64) + 'px';
+    el.classList.toggle('hot', e > 0.8);
+    const w = mass < 15 ? 'light' : mass < 40 ? 'a fair weight' : mass < 90 ? 'heavy' : 'very heavy';
+    el.lastChild.textContent = e > 0.8 ? 'straining' : w;
+  }
+
   setTool(t) {
     document.querySelectorAll('#toolbar .tool').forEach((b) => b.classList.toggle('on', b.dataset.act === t));
     $('#hints').innerHTML = t === 'hammer' ? this.hintHammer : this.hintIdle;

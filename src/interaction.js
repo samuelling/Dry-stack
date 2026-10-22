@@ -4,11 +4,13 @@ import * as THREE from 'three';
 import { RAPIER } from './physics.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+const STRENGTH = 450; // newtons the builder can put into a stone with both hands
 
 export class Interaction {
   constructor(game) {
     this.game = game;
     this.held = null;
+    this.effort = 0; this.effortRaw = 0;
     this.hover = null;
     this.pointer = new THREE.Vector2();
     this.pointerPx = { x: 0, y: 0 };
@@ -251,6 +253,7 @@ export class Interaction {
 
   pick(stone) {
     this.held = stone;
+    this.effort = 0;
     this.heldShape = stone.collider.shape;
     const b = stone.body;
     b.setGravityScale(0, true);
@@ -350,8 +353,10 @@ export class Interaction {
       this.ring.position.set(hit.point.x, hit.point.y + 0.004, hit.point.z);
       this.surface = hit;
     }
+    this.effort += ((this.effortRaw || 0) - this.effort) * (1 - Math.exp(-dt * 6));
+    this.game.ui.effort(this.effort, s.mass);
     // lift feel: heavy stones come up a little slower
-    const k = 1 - Math.exp(-dt * (14 / Math.sqrt(Math.max(1, s.mass / 8))));
+    const k = 1 - Math.exp(-dt * (14 / Math.pow(Math.max(1, s.mass / 8), 0.6)));
     this.smoothTarget.lerp(this.target, k);
     const t = s.body.translation();
     this.drop.position.set(t.x, this.ring.position.y, t.z);
@@ -366,11 +371,21 @@ export class Interaction {
     const b = s.body;
     const t = b.translation();
     const dx = this.smoothTarget.x - t.x, dy = this.smoothTarget.y - t.y, dz = this.smoothTarget.z - t.z;
-    const vmax = THREE.MathUtils.clamp(3.2 / Math.sqrt(s.mass / 5), 0.7, 4);
+    // The builder is only so strong. Speed falls with weight, and the force the hands can
+    // deliver is capped, so heavy stones lag, take time to get going, and give way slowly
+    // (or not at all) when they push against something heavier than the hands can shift.
+    const m = s.mass;
+    const vmax = THREE.MathUtils.clamp(4.2 * Math.pow(20 / m, 0.9), 0.3, 4.2);
     let vx = dx * 12, vy = dy * 12, vz = dz * 12;
     const sp = Math.hypot(vx, vy, vz);
     if (sp > vmax) { vx *= vmax / sp; vy *= vmax / sp; vz *= vmax / sp; }
-    b.setLinvel({ x: vx, y: vy, z: vz }, true);
+    const cv = b.linvel();
+    let ax = vx - cv.x, ay = vy - cv.y, az = vz - cv.z;
+    const need = Math.hypot(ax, ay, az) / h * m;           // newtons wanted this step
+    const cap = STRENGTH * (this.examining ? 2 : 1);
+    if (need > cap) { const f = cap / need; ax *= f; ay *= f; az *= f; }
+    this.effortRaw = Math.min(1, need / cap);
+    b.setLinvel({ x: cv.x + ax, y: cv.y + ay, z: cv.z + az }, true);
     const r = b.rotation();
     const cq = new THREE.Quaternion(r.x, r.y, r.z, r.w);
     const err = this.targetQ.clone().multiply(cq.invert());
@@ -379,7 +394,7 @@ export class Interaction {
     const sn = Math.sqrt(1 - err.w * err.w);
     let wx = 0, wy = 0, wz = 0;
     if (sn > 1e-4) {
-      const w = Math.min(ang * 10, 5);
+      const w = Math.min(ang * 10, THREE.MathUtils.clamp(5 * Math.pow(20 / m, 0.5), 1.2, 5));
       wx = (err.x / sn) * w; wy = (err.y / sn) * w; wz = (err.z / sn) * w;
     }
     b.setAngvel({ x: wx, y: wy, z: wz }, true);
