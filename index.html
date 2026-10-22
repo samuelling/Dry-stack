@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dry Stack</title>
+<meta name="description" content="Build a dry stone wall, stone by stone, with real physics. New England fieldstone to Welsh slate — in a pasture, a city lot, or under the sea.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23302a24'/%3E%3Cg fill='%23c9bfae'%3E%3Cellipse cx='20' cy='46' rx='13' ry='7'/%3E%3Cellipse cx='44' cy='46' rx='12' ry='7'/%3E%3Cellipse cx='32' cy='33' rx='14' ry='6.5'/%3E%3Cellipse cx='31' cy='21' rx='10' ry='5'/%3E%3C/g%3E%3C/svg%3E">
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/three.module.js",
+  "three/addons/": "./vendor/three/addons/"
+} }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="menu" class="overlay">
+  <div class="menu-inner">
+    <header class="masthead">
+      <h1>Dry Stack</h1>
+      <p class="lede">No mortar. No hurry. Just the pile, the line, and the next stone.</p>
+    </header>
+
+    <section>
+      <h2>Stone</h2>
+      <div id="stoneCards" class="cards stones"></div>
+    </section>
+
+    <section>
+      <h2>Setting</h2>
+      <div id="settingCards" class="cards settings">
+        <button class="card setting" data-v="countryside"><span class="art art-country"></span><b>Countryside</b><small>Rolling pasture, the old wall running off over the hill. Wind, grass, birds.</small></button>
+        <button class="card setting" data-v="city"><span class="art art-city"></span><b>City lot</b><small>A gap between brick rowhouses. Traffic hum, sparrows, a ghost sign.</small></button>
+        <button class="card setting" data-v="underwater"><span class="art art-sea"></span><b>Underwater</b><small>Nine metres down in the kelp. Slow stone, caustic light, shrimp crackle.</small></button>
+      </div>
+    </section>
+
+    <section class="row-opts">
+      <div class="opt">
+        <h3>Mode</h3>
+        <div class="seg" id="modeSeg"><button data-v="lesson">Lesson</button><button data-v="free">Free build</button></div>
+      </div>
+      <div class="opt">
+        <h3>Length</h3>
+        <div class="seg" id="lenSeg"><button data-v="2">2 m</button><button data-v="3">3 m</button><button data-v="5">5 m</button></div>
+      </div>
+      <div class="opt">
+        <h3>Light</h3>
+        <div class="seg" id="timeSeg"><button data-v="morning">Morning</button><button data-v="afternoon">Afternoon</button><button data-v="golden">Golden hour</button></div>
+      </div>
+      <div class="opt">
+        <h3>Detail</h3>
+        <div class="seg" id="qualSeg"><button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button></div>
+      </div>
+    </section>
+
+    <div class="begin-row">
+      <button id="begin" class="begin" disabled>Preparing…</button>
+      <p class="fine">Headphones recommended. All sound is synthesised — wind, birds and stone.</p>
+    </div>
+  </div>
+</div>
+
+<div id="loading" class="overlay hidden">
+  <div class="load-inner">
+    <div class="cairn"><i></i><i></i><i></i><i></i></div>
+    <p id="loadText">Clearing the ground…</p>
+  </div>
+</div>
+
+<div id="enter" class="overlay hidden">
+  <button id="enterBtn" class="begin">Enter</button>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="place">
+    <div class="t1">Dry Stack</div>
+    <div class="t2" id="placeText"></div>
+  </div>
+
+  <aside id="panel">
+    <div class="panel-head">
+      <div class="tabs"><button data-tab="lesson" class="on">Lesson</button><button data-tab="notes">Craft notes</button></div>
+      <button id="panelToggle" class="icon" title="Hide panel (N)">–</button>
+    </div>
+    <div id="lessonTab" class="tab-body"></div>
+    <div id="notesTab" class="tab-body hidden"></div>
+  </aside>
+
+  <div id="hints"></div>
+
+  <div id="holdbar" class="hidden">
+    <span id="holdName"></span>
+    <button data-act="ccw" title="Turn (Q)">⟲</button>
+    <button data-act="cw" title="Turn (E)">⟳</button>
+    <button data-act="tip" title="Tip over (R)">⤾</button>
+    <button data-act="roll" title="Roll (F)">⤿</button>
+    <button data-act="into" title="Length into the wall (T)">⇥ into wall</button>
+    <button data-act="edge" title="Stand on edge as a cope (C)">▮ on edge</button>
+    <button data-act="drop" title="Set down (click)">Set down</button>
+  </div>
+
+  <div id="toolbar">
+    <button data-act="hearting" title="Pour a handful of hearting where you point (H)"><span>H</span>Hearting</button>
+    <button data-act="cart" title="Tip another cartload of stone"><span>+</span>More stone</button>
+    <button data-act="weather" title="A century of frost, rain and cattle"><span>❄</span>Weather the wall</button>
+    <button data-act="time" title="Change the light"><span>☀</span><em id="timeLabel">Afternoon</em></button>
+    <button data-act="sound" title="Sound on/off (M)"><span>♪</span><em id="soundLabel">Sound</em></button>
+    <button data-act="photo" title="Hide the interface (P)"><span>◻</span>Photo</button>
+    <button data-act="menu" title="Back to the menu"><span>≡</span>Menu</button>
+  </div>
+
+  <div id="tip" class="hidden"></div>
+  <div id="toast" class="hidden"></div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
