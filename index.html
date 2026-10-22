@@ -27,29 +27,14 @@
       <p class="lede">No mortar. No hurry. Just the pile, the line, and the next stone.</p>
     </header>
 
-    <section>
-      <h2>Stone</h2>
-      <div id="stoneCards" class="cards stones"></div>
-    </section>
-
-    <section class="row-opts">
-      <div class="opt">
-        <h3>Mode</h3>
-        <div class="seg" id="modeSeg"><button data-v="lesson">Lesson</button><button data-v="focus">Focus</button><button data-v="free">Free build</button></div>
-      </div>
-      <div class="opt">
-        <h3>Length</h3>
-        <div class="seg" id="lenSeg"><button data-v="2">2 m</button><button data-v="3">3 m</button><button data-v="5">5 m</button></div>
-      </div>
-      <div class="opt">
-        <h3>Light</h3>
-        <div class="seg" id="timeSeg"><button data-v="morning">Morning</button><button data-v="afternoon">Afternoon</button><button data-v="golden">Golden hour</button></div>
-      </div>
-      <div class="opt">
-        <h3>Detail</h3>
-        <div class="seg" id="qualSeg"><button data-v="lite">Lite</button><button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button></div>
-      </div>
-    </section>
+    <div class="cairns">
+      <div class="pile wide"><div class="stack" id="stoneCards"></div><h2>Stone</h2></div>
+      <div class="pile"><div class="stack" id="modeSeg"><button class="rock" data-v="free">Free build</button><button class="rock" data-v="focus">Focus</button><button class="rock" data-v="lesson">Lesson</button></div><h2>Mode</h2></div>
+      <div class="pile"><div class="stack" id="lenSeg"><button class="rock" data-v="5">5 m</button><button class="rock" data-v="3">3 m</button><button class="rock" data-v="2">2 m</button></div><h2>Length</h2></div>
+      <div class="pile"><div class="stack" id="timeSeg"><button class="rock" data-v="golden">Golden hour</button><button class="rock" data-v="afternoon">Afternoon</button><button class="rock" data-v="morning">Morning</button></div><h2>Light</h2></div>
+      <div class="pile"><div class="stack" id="qualSeg"><button class="rock" data-v="high">High</button><button class="rock" data-v="medium">Medium</button><button class="rock" data-v="low">Low</button><button class="rock" data-v="lite">Lite</button></div><h2>Detail</h2></div>
+    </div>
+    <p class="stone-blurb" id="stoneBlurb"></p>
 
     <div class="begin-row">
       <button id="begin" class="begin" disabled>Preparing…</button>

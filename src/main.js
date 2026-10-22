@@ -786,24 +786,27 @@ function seg(id, key) {
   });
 }
 
+const ROCK_TINT = { newengland: '#8a8782', pennsylvania: '#9b6e4f', cotswold: '#c4a86f', welsh: '#586270', yorkshire: '#6d6558', aran: '#b7b6ac' };
+
 function buildMenu() {
   const wrap = $('#stoneCards');
-  for (const t of Object.values(STONE_TYPES)) {
+  const blurb = $('#stoneBlurb');
+  // stacks build from the bottom up: first stone at the base
+  const types = Object.values(STONE_TYPES);
+  for (const t of types) {
     const b = document.createElement('button');
-    b.className = 'card stone' + (t.key === cfg.stone ? ' on' : '');
+    b.className = 'rock' + (t.key === cfg.stone ? ' on' : '');
     b.dataset.v = t.key;
-    b.innerHTML = `<span class="thumb" data-thumb="${t.key}"></span><b>${t.name}</b><span class="region">${t.region}</span>`;
+    b.style.setProperty('--c', ROCK_TINT[t.key] || '#8d8a84');
+    b.innerHTML = `<b>${t.name}</b><span class="region">${t.region}</span>`;
     b.addEventListener('click', () => {
       cfg.stone = t.key;
-      wrap.querySelectorAll('.card').forEach((c) => c.classList.toggle('on', c === b));
+      wrap.querySelectorAll('.rock').forEach((c) => c.classList.toggle('on', c === b));
       blurb.textContent = t.blurb;
     });
     wrap.appendChild(b);
   }
-  const blurb = document.createElement('p');
-  blurb.className = 'stone-blurb';
   blurb.textContent = STONE_TYPES[cfg.stone].blurb;
-  wrap.after(blurb);
   seg('#modeSeg', 'mode'); seg('#lenSeg', 'length'); seg('#timeSeg', 'time'); seg('#qualSeg', 'quality');
 }
 
@@ -873,7 +876,6 @@ async function begin(audio) {
 (async function main() {
   buildMenu();
   const physReady = Physics.init();
-  try { renderThumbs(); } catch (e) { console.warn('thumbs', e); }
   await physReady;
   const btn = $('#begin');
   btn.disabled = false; btn.textContent = 'Begin';

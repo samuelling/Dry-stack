@@ -344,7 +344,12 @@ export class Interaction {
       const rot = { x: this.targetQ.x, y: this.targetQ.y, z: this.targetQ.z, w: this.targetQ.w };
       const sc = w.castShape(start, rot, { x: 0, y: -1, z: 0 }, this.heldShape, 0, 3.5, true, undefined, undefined, s.collider, s.body);
       let y = hit.point.y + 0.15;
-      if (sc) y = start.y - sc.time_of_impact;
+      // An overlap at the very start of the cast (toi ~ 0) means the probe began inside something,
+      // not that the ground is 1.6 m up. Keep the last sensible height instead of lifting the stone.
+      if (sc && sc.time_of_impact > 0.02) y = start.y - sc.time_of_impact;
+      else if (sc && this.landing) y = this.landing.y;
+      // never ask the hands to rise more than a step above where the pointer meets the surface
+      y = Math.min(y, hit.point.y + 0.9);
       this.landing = new THREE.Vector3(hit.point.x, y, hit.point.z);
       this.target.set(hit.point.x, y + this.clearance, hit.point.z);
       // keep stones inside the work area
@@ -379,7 +384,11 @@ export class Interaction {
     let vx = dx * 12, vy = dy * 12, vz = dz * 12;
     const sp = Math.hypot(vx, vy, vz);
     if (sp > vmax) { vx *= vmax / sp; vy *= vmax / sp; vz *= vmax / sp; }
-    const cv = b.linvel();
+    const cv0 = b.linvel();
+    // contact push-out must not build up into a launch: keep inherited speed near what we asked for
+    const cs = Math.hypot(cv0.x, cv0.y, cv0.z), lim = vmax * 1.25 + 0.2;
+    const cvk = cs > lim ? lim / cs : 1;
+    const cv = { x: cv0.x * cvk, y: cv0.y * cvk, z: cv0.z * cvk };
     let ax = vx - cv.x, ay = vy - cv.y, az = vz - cv.z;
     const need = Math.hypot(ax, ay, az) / h * m;           // newtons wanted this step
     const cap = STRENGTH * (this.examining ? 2 : 1);
