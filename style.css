@@ -54,12 +54,6 @@ h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: 
 .art { display: block; height: 92px; border-radius: 9px; margin-bottom: 4px; position: relative; overflow: hidden; }
 .art-country { background: linear-gradient(180deg, #9cb7cf 0%, #e5d3b0 55%, #6b7a36 56%, #8c8546 75%, #4f5a2a 100%); }
 .art-country::after { content: ''; position: absolute; left: -10%; right: -10%; bottom: 18px; height: 12px; background: repeating-radial-gradient(circle at 10px 8px, #8a857a 0 5px, #6f6a60 5px 8px); border-radius: 4px; transform: rotate(-3deg); opacity: .9; }
-.art-city { background: linear-gradient(180deg, #e8b98a 0%, #d6927a 50%, #2d2622 50.5%), #2d2622; }
-.art-city::after { content: ''; position: absolute; inset: 22px 0 0; background:
-  linear-gradient(90deg, transparent 0 10%, #5a2e22 10% 30%, transparent 30% 34%, #6e3a2a 34% 55%, transparent 55% 70%, #4f2a20 70% 92%, transparent 92%);
-  -webkit-mask: linear-gradient(180deg, #000 0 100%); }
-.art-sea { background: radial-gradient(120px 60px at 60% 0%, rgba(210,255,250,.6), transparent), linear-gradient(180deg, #4fb3bf 0%, #0e5363 60%, #b5a27a 61%, #8e7f5d 100%); }
-.art-sea::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 70%; background: repeating-linear-gradient(95deg, transparent 0 22px, rgba(90,80,30,.55) 22px 25px, transparent 25px 40px); }
 .row-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: rgba(255,255,255,0.03); flex-wrap: wrap; }
 .seg button { border: 0; background: none; padding: 7px 14px; border-radius: 999px; cursor: pointer; color: var(--ink-2); font-size: 13px; }

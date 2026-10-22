@@ -10,11 +10,11 @@ No mortar, no score chasing, no music. Just wind in the grass and birdsong (or t
 
 - **Six regional stones**, each generated procedurally with its own shape and shading:
   New England fieldstone (rounded glacial granite, gneiss and schist), Pennsylvania fieldstone (rusty sandstone), Cotswold limestone (thin honey-coloured beds), Welsh slate (thin blue-grey and purple plates), Yorkshire gritstone (dark weathered skin over buff stone) and Aran limestone (pale stone with rain-etched pits).
-- **Three settings:** rolling countryside, where the landscape matches the stone's region and the old wall runs off over the hill from the gap you're rebuilding; a vacant lot between brick rowhouses; and a kelp bed nine metres down, with lower effective gravity, water drag, caustics and drifting particles.
+- **Rolling countryside** where the landscape matches the stone's region and the old wall runs off over the hill from the gap you're rebuilding.
 - **Real physics** (Rapier): every stone is a dynamic convex body with real mass (granite at 2.6 t/m³). Stones you're carrying still push and get pushed. Walls stand or fall on how well they're built.
 - **A lesson** that follows how wallers actually work: footings in the trench, length into the wall, hearting packed as you go, one over two (no running joints), batter frames and string lines, throughs at knee height, copes on top, then a "hundred winters" test.
 - **Craft notes** that read your wall the way a waller would: footing coverage, traced stones, stones proud of the line, running joints (marked in red on the face), how well the hearting is packed, throughs and copes.
-- **All sound is synthesised** in the browser: gusting wind, grass, regional birds (chickadee, white-throated sparrow and blue jay in New England; robin, wren, curlew and skylark in Britain and Ireland), crickets, the city, the sea, and modal-synthesis stone impacts whose pitch depends on each stone's size and type.
+- **All sound is synthesised** in the browser: gusting wind, grass, regional birds (chickadee, white-throated sparrow and blue jay in New England; robin, wren, curlew and skylark in Britain and Ireland), crickets, and modal-synthesis stone impacts whose pitch depends on each stone's size and type.
 
 ## Focus mode
 
@@ -51,7 +51,7 @@ python3 -m http.server 8000
 # open http://localhost:8000
 ```
 
-URL parameters skip the menu, e.g. `?stone=welsh&setting=underwater&mode=free&len=3&time=golden&q=high&go=1`.
+URL parameters skip the menu, e.g. `?stone=welsh&mode=free&len=3&time=golden&q=high&go=1`.
 
 ## Code map
 
@@ -60,5 +60,5 @@ URL parameters skip the menu, e.g. `?stone=welsh&setting=underwater&mode=free&le
 - `src/interaction.js` — picking, carrying (velocity-steered dynamic body), turning, setting down
 - `src/analysis.js` — reads the wall: footings, faces, running joints, hearting fill (point samples), throughs, copes
 - `src/tutorial.js` — lesson steps and their live checks
-- `src/env/` — countryside (region presets), city, underwater
+- `src/env/` — countryside (region presets)
 - `src/audio.js` — synthesised soundscapes and stone impacts

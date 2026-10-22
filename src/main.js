@@ -15,8 +15,6 @@ import { SkySystem } from './sky.js';
 import { sampleHeightfield } from './terrain.js';
 import { WallSpec, Guides } from './wall.js';
 import { Countryside, REGIONS } from './env/countryside.js';
-import { City } from './env/city.js';
-import { Underwater } from './env/underwater.js';
 import { Interaction } from './interaction.js';
 import { SoundScape } from './audio.js';
 import { analyseWall } from './analysis.js';
@@ -32,7 +30,7 @@ const params = new URLSearchParams(location.search);
 const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
 const cfg = {
   stone: params.get('stone') || 'newengland',
-  setting: params.get('setting') || 'countryside',
+  setting: 'countryside',
   mode: params.get('mode') || 'lesson',
   length: parseFloat(params.get('len') || '3'),
   time: params.get('time') || 'afternoon',
@@ -80,7 +78,7 @@ class Game {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = cfg.setting === 'underwater' ? 1.05 : 0.92;
+    renderer.toneMappingExposure = 0.92;
     this.renderer = renderer;
 
     const scene = new THREE.Scene();
@@ -88,13 +86,11 @@ class Game {
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.02, 5000);
     this.camera = camera;
 
-    const underwater = cfg.setting === 'underwater';
     this.physics = new Physics();
-    this.physics.setUnderwater(underwater);
 
     // wall spec uses the environment's ground (without trench)
     const ctx = { scene, renderer, physics: this.physics, quality: cfg.quality, typeKey: cfg.stone };
-    const EnvClass = cfg.setting === 'city' ? City : underwater ? Underwater : Countryside;
+    const EnvClass = Countryside;
     // spec needs heightFn; create env first with a placeholder spec
     const spec = new WallSpec({ length: cfg.length, height: 1.0, heightFn: () => 0 });
     ctx.spec = spec;
@@ -103,7 +99,7 @@ class Game {
     this.spec = spec;
     this.env = env;
 
-    await setLoad(underwater ? 'Sinking the line…' : cfg.setting === 'city' ? 'Clearing the lot…' : 'Walking the old wall…');
+    await setLoad('Walking the old wall…');
     env.build();
 
     // physics ground
@@ -113,9 +109,9 @@ class Game {
     this.physics.addBox(60, 0.5, 60, 0, -3, 0);
 
     // sky + lights
-    if (!underwater) {
+    {
       const R = REGIONS[cfg.stone];
-      this.sky = new SkySystem(renderer, scene, { turbidity: cfg.setting === 'city' ? 7.5 : R.turbidity, cloudCover: R.clouds });
+      this.sky = new SkySystem(renderer, scene, { turbidity: R.turbidity, cloudCover: R.clouds });
     }
     this.sun = new THREE.DirectionalLight(0xffffff, 3);
     this.sun.castShadow = true;
@@ -132,10 +128,10 @@ class Game {
     this.applyTime(this.time, true);
 
     // guides
-    this.guides = new Guides(scene, spec, { underwater });
+    this.guides = new Guides(scene, spec);
 
     // stones
-    await setLoad(underwater ? 'Lowering the stone…' : 'Carting the stone…');
+    await setLoad('Carting the stone…');
     this.stones = [];
     await this.makePile();
     if (cfg.mode === 'focus') { await setLoad('Laying the footings…'); await this.layFootings(); }
@@ -172,7 +168,7 @@ class Game {
       gtao.setSize = (w, h) => gtaoSetSize(Math.max(1, Math.floor(w / 2)), Math.max(1, Math.floor(h / 2)));
       gtao.updateGtaoMaterial({ radius: 0.32, distanceExponent: 1.6, thickness: 1.2, scale: 1.0, samples: cfg.quality === 'high' ? 16 : 8, distanceFallOff: 1 });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
-      gtao.blendIntensity = underwater ? 0.6 : 0.9;
+      gtao.blendIntensity = 0.9;
       composer.addPass(gtao);
       this.gtao = gtao;
     }
@@ -183,7 +179,6 @@ class Game {
     composer.addPass(this.bokeh);
     composer.addPass(new OutputPass());
     this.grade = new ShaderPass(GradeShader);
-    if (underwater) this.grade.uniforms.uTint.value.set(0.96, 1.02, 1.04);
     composer.addPass(this.grade);
     this.composer = composer;
 
@@ -440,13 +435,6 @@ class Game {
   applyTime(time, initial = false) {
     this.time = time;
     const env = this.env;
-    if (this.cfg.setting === 'underwater') {
-      this.sun.color.set(0xd6f6f0); this.sun.intensity = 3.8;
-      this.sun.position.set(4, 30, 6);
-      this.hemi.color.set(0x8fdce0); this.hemi.groundColor.set(0x6a7a5a); this.hemi.intensity = 1.3;
-      this.scene.environmentIntensity = 0.7;
-      return;
-    }
     const [el, az] = env.sunFor(time);
     const sunDir = this.sky.setSun(el, az);
     this.sunDir = sunDir.clone();
@@ -461,14 +449,12 @@ class Game {
     this.renderer.toneMappingExposure = 0.88 + (1 - f) * 0.12;
     const R = REGIONS[this.cfg.stone];
     const fogCol = new THREE.Color(0.86, 0.7, 0.56).lerp(new THREE.Color(0.7, 0.78, 0.88), f);
-    if (this.cfg.setting === 'city') fogCol.lerp(new THREE.Color(0.75, 0.7, 0.66), 0.4);
-    this.scene.fog = new THREE.FogExp2(fogCol, this.cfg.setting === 'city' ? 0.0045 : R.fog);
+    this.scene.fog = new THREE.FogExp2(fogCol, R.fog);
     if (env.setTime) env.setTime(time);
     if (!initial) this.ui?.toast({ morning: 'Morning', afternoon: 'Afternoon', golden: 'Golden hour' }[time], 1400);
   }
 
   placeSun() {
-    if (this.cfg.setting === 'underwater') { this.sun.target.position.set(0, 0, 0); return; }
     const c = this.controls.target;
     this.sun.position.copy(this.sunDir).multiplyScalar(30).add(new THREE.Vector3(c.x, 0, 0));
     this.sun.target.position.set(c.x, 0, 0);
@@ -817,13 +803,6 @@ function buildMenu() {
   blurb.className = 'stone-blurb';
   blurb.textContent = STONE_TYPES[cfg.stone].blurb;
   wrap.after(blurb);
-  document.querySelectorAll('#settingCards .card').forEach((c) => {
-    c.classList.toggle('on', c.dataset.v === cfg.setting);
-    c.addEventListener('click', () => {
-      cfg.setting = c.dataset.v;
-      document.querySelectorAll('#settingCards .card').forEach((x) => x.classList.toggle('on', x === c));
-    });
-  });
   seg('#modeSeg', 'mode'); seg('#lenSeg', 'length'); seg('#timeSeg', 'time'); seg('#qualSeg', 'quality');
 }
 
@@ -885,7 +864,7 @@ async function begin(audio) {
   window.addEventListener('pointerdown', () => audio.ctx && audio.ctx.resume(), { once: true });
   game.run();
   const url = new URL(location.href);
-  for (const [k, v] of Object.entries({ stone: cfg.stone, setting: cfg.setting, mode: cfg.mode, len: cfg.length, time: cfg.time, q: cfg.quality })) url.searchParams.set(k, v);
+  for (const [k, v] of Object.entries({ stone: cfg.stone, mode: cfg.mode, len: cfg.length, time: cfg.time, q: cfg.quality })) url.searchParams.set(k, v);
   history.replaceState(null, '', url);
   game.ui.toast(cfg.mode === 'lesson' ? 'Take your time. The wall will wait.' : 'The pile is yours.', 2600);
 }
