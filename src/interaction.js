@@ -21,6 +21,10 @@ export class Interaction {
     this.sticky = false;
     this.surface = null;
     this.keys = new Set();
+    this.nudge = new THREE.Vector3();
+    this.examining = false;
+    this.ghosted = false;
+    this.lastPlaced = null;
     const el = game.renderer.domElement;
     this.el = el;
     window.addEventListener('pointerdown', (e) => this.onDown(e), true);
@@ -30,6 +34,7 @@ export class Interaction {
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+    el.addEventListener('dblclick', (e) => { this.setPointer(e); this.lookClosely(); });
 
     // landing marker
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.065, 40).rotateX(-Math.PI / 2),
@@ -84,7 +89,13 @@ export class Interaction {
     if (this.held) {
       // click while carrying (sticky mode) sets the stone down
       e.stopPropagation();
+      if (this.examining) { this.endExamine(); return; }
       this.release();
+      return;
+    }
+    const craft = this.game.craft;
+    if (craft && craft.tool === 'hammer') {
+      if (craft.cut) { e.stopPropagation(); craft.strikeNow(); }
       return;
     }
     const s = this.stoneUnderPointer();
@@ -98,11 +109,24 @@ export class Interaction {
   }
 
   onMove(e) {
+    if (this.held && this.examining) {
+      const dx = e.movementX || 0, dy = e.movementY || 0;
+      const camRight = new THREE.Vector3().setFromMatrixColumn(this.game.camera.matrixWorld, 0);
+      const camUp = new THREE.Vector3().setFromMatrixColumn(this.game.camera.matrixWorld, 1);
+      this.targetQ.premultiply(new THREE.Quaternion().setFromAxisAngle(camUp, dx * 0.012));
+      this.targetQ.premultiply(new THREE.Quaternion().setFromAxisAngle(camRight, dy * 0.012)).normalize();
+      return;
+    }
+    if (this.held && this.nudge.lengthSq() > 0) {
+      if (!this._nudgeFrom) this._nudgeFrom = { x: e.clientX, y: e.clientY };
+      else if (Math.hypot(e.clientX - this._nudgeFrom.x, e.clientY - this._nudgeFrom.y) > 6) { this.nudge.set(0, 0, 0); this._nudgeFrom = null; }
+    }
     this.setPointer(e);
     if (!this.held && e.target === this.el && !this.game.controlsActive) {
       const now = performance.now();
       if (!this._lastHover || now - this._lastHover > 50) {
         this._lastHover = now;
+        if (this.game.craft && this.game.craft.tool === 'hammer') { this.game.ui.hoverStone(null); return; }
         this.hover = this.stoneUnderPointer();
         this.game.ui.hoverStone(this.hover, this.pointerPx);
         this.el.style.cursor = this.hover ? 'grab' : 'default';
@@ -111,6 +135,7 @@ export class Interaction {
   }
 
   onUp(e) {
+    if (e.button !== 0) return;
     if (!this.held || !this.press) return;
     this.press = false;
     const dt = performance.now() - this.downAt;
@@ -119,13 +144,20 @@ export class Interaction {
   }
 
   onWheel(e) {
-    if (!this.held) return;
-    e.preventDefault(); e.stopPropagation();
-    this.wheelAcc = (this.wheelAcc || 0) + e.deltaY;
-    if (Math.abs(this.wheelAcc) > 40) {
-      const step = (e.shiftKey ? 5 : 15) * Math.sign(this.wheelAcc);
-      this.rotateWorld(UP, THREE.MathUtils.degToRad(step));
-      this.wheelAcc = 0;
+    // plain wheel / pinch always zooms (OrbitControls); Shift+wheel works the stone or hammer
+    if (!e.shiftKey) return;
+    const craft = this.game.craft;
+    const d = e.deltaY || e.deltaX;
+    if (this.held) {
+      e.preventDefault(); e.stopPropagation();
+      this.wheelAcc = (this.wheelAcc || 0) + d;
+      if (Math.abs(this.wheelAcc) > 40) {
+        this.rotateWorld(UP, THREE.MathUtils.degToRad(10 * Math.sign(this.wheelAcc)));
+        this.wheelAcc = 0;
+      }
+    } else if (craft && craft.tool === 'hammer') {
+      e.preventDefault(); e.stopPropagation();
+      craft.depth = THREE.MathUtils.clamp(craft.depth * (d > 0 ? 0.9 : 1.1), 0.003, 0.06);
     }
   }
 
@@ -136,6 +168,35 @@ export class Interaction {
     if (!down) { if (k === ' ') this.clearance = 0.035; return; }
     if (this.game.paused) return;
     const fine = e.shiftKey ? 1 / 6 : 1;
+    const craft = this.game.craft;
+    if (k === 'z') { this.lookClosely(); return; }
+    if (!this.held && craft) {
+      if (k === '1') { craft.setTool('hand'); return; }
+      if (k === '2' || k === 'g') { craft.setTool(craft.tool === 'hammer' ? 'hand' : 'hammer'); return; }
+      if (k === 'x') { craft.pressTest(this.stoneUnderPointer() || this.lastPlaced); return; }
+      if (craft.tool === 'hammer') {
+        if (k === 'q') craft.tilt = Math.max(-0.9, craft.tilt - 0.15);
+        else if (k === 'e') craft.tilt = Math.min(0.9, craft.tilt + 0.15);
+        else if (k === '[') craft.depth = Math.max(0.003, craft.depth * 0.8);
+        else if (k === ']') craft.depth = Math.min(0.06, craft.depth * 1.25);
+        return;
+      }
+    }
+    if (this.held) {
+      if (k.startsWith('arrow')) {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.001 : 0.004;
+        const camRight = new THREE.Vector3().setFromMatrixColumn(this.game.camera.matrixWorld, 0); camRight.y = 0; camRight.normalize();
+        const camFwd = new THREE.Vector3().crossVectors(UP, camRight).normalize();
+        if (k === 'arrowleft') this.nudge.addScaledVector(camRight, -step);
+        if (k === 'arrowright') this.nudge.addScaledVector(camRight, step);
+        if (k === 'arrowup') this.nudge.addScaledVector(camFwd, step);
+        if (k === 'arrowdown') this.nudge.addScaledVector(camFwd, -step);
+        this._nudgeFrom = null;
+        return;
+      }
+      if (k === 'v') { if (this.examining) this.endExamine(); else this.startExamine(); return; }
+    }
     if (this.held) {
       const camRight = new THREE.Vector3().setFromMatrixColumn(this.game.camera.matrixWorld, 0); camRight.y = 0; camRight.normalize();
       const camFwd = new THREE.Vector3().crossVectors(UP, camRight).normalize();
@@ -146,7 +207,7 @@ export class Interaction {
       else if (k === 't') this.turnIntoWall();
       else if (k === 'c') this.standOnEdge();
       else if (k === ' ') { this.clearance = -0.004; e.preventDefault(); }
-      else if (k === 'escape') this.release();
+      else if (k === 'escape') { if (this.examining) this.endExamine(); else this.release(); }
     }
   }
 
@@ -200,7 +261,8 @@ export class Interaction {
     this.smoothTarget.set(t.x, t.y + 0.05, t.z);
     this.target.copy(this.smoothTarget);
     this.liftT = 0;
-    this.game.controls.enabled = false;
+    this.nudge.set(0, 0, 0);
+    this.game.controls.mouseButtons.LEFT = -1; // left is for the stone now; right-drag still orbits
     this.el.style.cursor = 'grabbing';
     this.game.audio.scrape(0.35);
     this.game.ui.hoverStone(null);
@@ -216,8 +278,12 @@ export class Interaction {
     const v = b.linvel();
     b.setLinvel({ x: v.x * 0.2, y: Math.min(0, v.y) * 0.2, z: v.z * 0.2 }, true);
     b.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    if (this.ghosted) { this.game.physics.setGhost(s, false); this.ghosted = false; }
+    this.examining = false;
     this.held = null;
-    this.game.controls.enabled = true;
+    this.lastPlaced = s;
+    if (this.game.craft) this.game.craft.clearFit(s);
+    this.game.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
     this.el.style.cursor = 'default';
     this.game.stats.placed++;
     this.game.ui.setHolding(null);
@@ -226,17 +292,57 @@ export class Interaction {
   }
 
   // Called once per frame: where should the stone go?
+  startExamine() {
+    const s = this.held;
+    if (!s) return;
+    this.examining = true;
+    this.game.physics.setGhost(s, true);
+    this.ghosted = true;
+    this.ring.visible = false; this.drop.visible = false;
+    this.game.ui.toast('Turn it in your hands — move the mouse. V or click to put it back to the wall.', 2600);
+  }
+
+  endExamine() {
+    this.examining = false;
+    this.ring.visible = true; this.drop.visible = true;
+    // collisions come back once it is clear of everything (see update)
+  }
+
+  lookClosely() {
+    const hit = this.castPointer(this.held ? this.held.body : null);
+    if (!hit) return;
+    this.game.flyTo(hit.point, 0.75);
+  }
+
   update(dt) {
     const s = this.held;
     if (!s) return;
+    if (this.examining) {
+      const cam = this.game.camera;
+      const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd);
+      const camUp = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
+      const d = THREE.MathUtils.clamp(Math.max(s.size.x, s.size.z) * 1.6, 0.25, 0.9);
+      this.target.copy(cam.position).addScaledVector(fwd, d).addScaledVector(camUp, -0.03);
+      const k = 1 - Math.exp(-dt * 8);
+      this.smoothTarget.lerp(this.target, k);
+      return;
+    }
+    if (this.ghosted) {
+      const t = s.body.translation(), r = s.body.rotation();
+      let clear = true;
+      this.game.physics.world.intersectionsWithShape(t, r, this.heldShape, () => { clear = false; return false; }, undefined, undefined, s.collider, s.body);
+      if (clear) { this.game.physics.setGhost(s, false); this.ghosted = false; }
+    }
     const hit = this.castPointer(s.body);
     if (hit) {
+      hit.point.add(this.nudge);
       const w = this.game.physics.world;
       const start = { x: hit.point.x, y: hit.point.y + 1.6, z: hit.point.z };
       const rot = { x: this.targetQ.x, y: this.targetQ.y, z: this.targetQ.z, w: this.targetQ.w };
       const sc = w.castShape(start, rot, { x: 0, y: -1, z: 0 }, this.heldShape, 0, 3.5, true, undefined, undefined, s.collider, s.body);
       let y = hit.point.y + 0.15;
       if (sc) y = start.y - sc.time_of_impact;
+      this.landing = new THREE.Vector3(hit.point.x, y, hit.point.z);
       this.target.set(hit.point.x, y + this.clearance, hit.point.z);
       // keep stones inside the work area
       this.target.x = THREE.MathUtils.clamp(this.target.x, -this.game.spec.L / 2 - 4, this.game.spec.L / 2 + 4);

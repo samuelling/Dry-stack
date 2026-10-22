@@ -427,6 +427,36 @@ export class SoundScape {
     setTimeout(() => { this.voices--; }, (end - t) * 1000 + 120);
   }
 
+  // walling hammer on stone: a bright steel ping over a dry crack
+  hammer(strength = 0.7, ring = 1, broke = true) {
+    if (!this.ctx || !this.enabled) return;
+    const c = this.ctx, t = c.currentTime;
+    const out = c.createGain(); out.gain.value = 0.55 * strength;
+    out.connect(this.fxBus);
+    for (const [f, a, d] of [[2650, 0.35, 0.22], [4120, 0.22, 0.15], [6900, 0.1, 0.08], [1320, 0.18, 0.12]]) {
+      const o = c.createOscillator(); o.frequency.value = f * rnd(0.97, 1.03);
+      const g = c.createGain(); g.gain.setValueAtTime(a, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d * ring);
+      o.connect(g).connect(out); o.start(t); o.stop(t + d * ring + 0.02);
+    }
+    const s = c.createBufferSource(); s.buffer = this.noise;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = broke ? 1800 : 3200; bp.Q.value = 0.8;
+    const ng = c.createGain(); ng.gain.setValueAtTime(broke ? 1.6 : 0.6, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + (broke ? 0.09 : 0.03));
+    s.connect(bp).connect(ng).connect(out); s.start(t, Math.random() * 4); s.stop(t + 0.12);
+    const o = c.createOscillator(); o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.08);
+    const g = c.createGain(); g.gain.setValueAtTime(0.6, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    o.connect(g).connect(out); o.start(t); o.stop(t + 0.12);
+  }
+
+  // a stone rocking on two points: a hollow knock
+  tock(amount = 0.5, size = 0.25) {
+    if (!this.ctx || !this.enabled) return;
+    const c = this.ctx, t = c.currentTime;
+    const f = Math.min(1600, 260 / Math.max(0.05, size));
+    const o = c.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.7, t + 0.05);
+    const g = c.createGain(); g.gain.setValueAtTime(0.5 * amount, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(g).connect(this.fxBus); o.start(t); o.stop(t + 0.09);
+  }
+
   scrape(amount = 0.3) {
     if (!this.ctx || !this.enabled) return;
     const c = this.ctx, t = c.currentTime;

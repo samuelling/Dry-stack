@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { makeNoise3, mulberry32, rand } from './noise.js';
 import { NOISE_GLSL, BUMP_GLSL, CAUSTIC_GLSL } from './glsl.js';
 
@@ -107,6 +108,7 @@ export const SIZE_CLASSES = {
   through:    { L: [0.68, 0.84], W: [0.2, 0.3], H: [0.1, 0.16], detail: 18 },
   cope:       { L: [0.36, 0.46], W: [0.24, 0.32], H: [0.08, 0.13], detail: 16 },
   hearting:   { L: [0.05, 0.12], W: [0.04, 0.09], H: [0.03, 0.07], detail: 5 },
+  pinning:    { L: [0.06, 0.14], W: [0.04, 0.085], H: [0.012, 0.026], detail: 7 },
 };
 
 function pickVariant(type, rng) {
@@ -128,10 +130,13 @@ function makeShape(type, cls, rng) {
   let L = rand(rng, ...sc.L), W = rand(rng, ...sc.W), H = rand(rng, ...sc.H);
   // character: some stones blocky, some flat, most just stone-shaped
   const charR = rng();
-  const blocky = cls !== 'hearting' && charR < 0.3;
-  const flat = cls !== 'hearting' && charR > 0.78;
+  const small = cls === 'hearting' || cls === 'pinning';
+  const blocky = !small && charR < 0.3;
+  const flat = !small && charR > 0.78;
   if (flat) H *= 0.68;
-  if (cls !== 'hearting') {
+  if (cls === 'pinning') {
+    H *= 0.75 + sh.h * 0.4;
+  } else if (cls !== 'hearting') {
     H *= sh.h * (cls === 'cope' ? 1.0 : 1.15);
     if (cls === 'cope') { H = Math.max(H, 0.06); }
   } else {
@@ -144,8 +149,9 @@ function makeShape(type, cls, rng) {
   const as = sh.asym || 0;
   const exP = ex * rand(rng, 1 - as * 0.3, 1 + as * 0.2), exN = ex * rand(rng, 1 - as, 1);
   const ezP = ez * rand(rng, 1 - as * 0.3, 1 + as * 0.2), ezN = ez * rand(rng, 1 - as, 1);
-  const taperX = rand(rng, -1, 1) * (sh.taper || 0), taperZ = rand(rng, -1, 1) * (sh.taper || 0) * 0.6;
-  const bedded = sh.bed > 0 && cls !== 'hearting';
+  let taperX = rand(rng, -1, 1) * (sh.taper || 0), taperZ = rand(rng, -1, 1) * (sh.taper || 0) * 0.6;
+  if (cls === 'pinning') taperX = (rng() < 0.5 ? -1 : 1) * rand(rng, 0.5, 0.8); // a wedge
+  const bedded = sh.bed > 0 && !small;
   const eyS = bedded ? ey / sh.bed : ey;
   const planes = [];
   if (bedded) {
@@ -159,15 +165,41 @@ function makeShape(type, cls, rng) {
     let n = randomUnit(rng);
     if (bedded) { n.y *= 0.35; n.normalize(); } // fractures roughly across the beds
     // Faces of builders: favour a flattish face on the long sides (that's what wallers look for)
-    if (i === 0 && cls !== 'hearting') n = new THREE.Vector3(rand(rng, -0.2, 0.2), rand(rng, -0.15, 0.15), rng() < 0.5 ? 1 : -1).normalize();
+    if (i === 0 && !small) n = new THREE.Vector3(rand(rng, -0.2, 0.2), rand(rng, -0.15, 0.15), rng() < 0.5 ? 1 : -1).normalize();
     const sup = Math.sqrt((ex * n.x) ** 2 + (eyS * n.y) ** 2 + (ez * n.z) ** 2);
     planes.push({ n, h: sup * rand(rng, ...sh.cutDepth) });
   }
   const k = sh.round * (blocky ? 0.6 : 1) * Math.min(ex, ey, ez) * 2.0 + 0.0015;
   const seed = rng() * 100;
-  const noiseAmp = sh.noise * (cls === 'hearting' ? 1.6 : 1);
+  const noiseAmp = sh.noise * (cls === 'hearting' ? 1.6 : cls === 'pinning' ? 0.6 : 1);
+  const cuts = []; // fresh faces knocked off with the hammer: {n, h}
+  const floorR = Math.min(ex, ey, ez) * 0.25;
+  let lastFresh = 0;
+
+  // polynomial smooth-min with a tight radius, for crisp fresh arrises
+  const smin = (a, b, k2) => { const h = Math.max(k2 - Math.abs(a - b), 0) / k2; return Math.min(a, b) - h * h * k2 * 0.25; };
 
   function r(dx, dy, dz) {
+    let rr = rWeathered(dx, dy, dz);
+    lastFresh = 0;
+    if (cuts.length) {
+      let tc = Infinity;
+      for (const c of cuts) {
+        const nd = c.n.x * dx + c.n.y * dy + c.n.z * dz;
+        if (nd > 1e-4) tc = Math.min(tc, c.h / nd);
+      }
+      if (tc < Infinity) {
+        // dressed faces: flat, with the faint ripple of hammer blows
+        tc *= 1 + 0.004 * N(dx * 14 + seed, dy * 14, dz * 14);
+        const before = rr;
+        rr = smin(rr, tc, 0.004);
+        lastFresh = THREE.MathUtils.clamp((before - rr) / 0.002, 0, 1);
+      }
+    }
+    return Math.max(rr, floorR);
+  }
+
+  function rWeathered(dx, dy, dz) {
     const exd = dx > 0 ? exP : exN, ezd = dz > 0 ? ezP : ezN;
     const eyd = eyS * (1 + taperX * dx + taperZ * dz);
     const s = Math.pow(Math.abs(dx / exd), p) + Math.pow(Math.abs(dy / eyd), p) + Math.pow(Math.abs(dz / ezd), p);
@@ -186,9 +218,9 @@ function makeShape(type, cls, rng) {
     const n2 = N(dx * sh.freq * 2.3 + seed, dy * sh.freq * 2.3 + 5, dz * sh.freq * 2.3);
     const n3 = N(dx * 7 + seed, dy * 7, dz * 7);
     rr *= 1 + noiseAmp * (n1 * 0.7 + n2 * 0.3) + sh.detail * n3;
-    return Math.max(rr, Math.min(ex, ey, ez) * 0.25);
+    return rr;
   }
-  return { r, L, W, H };
+  return { r, rWeathered, cuts, fresh: () => lastFresh, L, W, H };
 }
 
 const sphereCache = new Map();
@@ -208,53 +240,147 @@ export function generateStone(typeKey, cls, seed) {
   const type = STONE_TYPES[typeKey];
   const rng = mulberry32(seed);
   const shape = makeShape(type, cls, rng);
-  const detail = SIZE_CLASSES[cls].detail;
-  const base = unitSphere(detail);
-  const geo = base.clone();
-  const pos = geo.attributes.position;
-  const v = new THREE.Vector3();
-  const min = new THREE.Vector3(Infinity, Infinity, Infinity), max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i).normalize();
-    const rr = shape.r(v.x, v.y, v.z);
-    v.multiplyScalar(rr);
-    pos.setXYZ(i, v.x, v.y, v.z);
-    min.min(v); max.max(v);
-  }
-  geo.computeVertexNormals();
-
-  // Per-stone shading attributes
   const variant = pickVariant(type, rng);
   const ca = linear(variant.a), cb = linear(variant.b);
   const jit = 1 + (rng() - 0.5) * 0.18;
   const hueShift = (rng() - 0.5) * 0.05;
   ca.offsetHSL(hueShift, 0, 0).multiplyScalar(jit);
   cb.offsetHSL(hueShift, 0, 0).multiplyScalar(jit);
-  const n = pos.count;
+  const small = cls === 'hearting' || cls === 'pinning';
+  const lich = type.lichen * rand(rng, 0.4, 1.3) * (small ? 0.4 : 1);
+  const look = { ca, cb, sd: rng(), speckle: variant.speckle, rust: variant.rust, lich };
+  const st = {
+    shape, look, cls, type: typeKey, band: variant.band, cuts: 0,
+    detail: SIZE_CLASSES[cls].detail, hullDetail: small ? 1 : 3,
+  };
+  buildStoneGeometry(st);
+  return st;
+}
+
+function lookAttributes(geo, look, freshArr) {
+  const n = geo.attributes.position.count;
   const aColA = new Float32Array(n * 3), aColB = new Float32Array(n * 3), aStone = new Float32Array(n * 4);
-  const lich = type.lichen * rand(rng, 0.4, 1.3) * (cls === 'hearting' ? 0.4 : 1);
-  const sd = rng();
   for (let i = 0; i < n; i++) {
-    aColA.set([ca.r, ca.g, ca.b], i * 3);
-    aColB.set([cb.r, cb.g, cb.b], i * 3);
-    aStone.set([sd, variant.speckle, variant.rust, lich], i * 4);
+    aColA[i * 3] = look.ca.r; aColA[i * 3 + 1] = look.ca.g; aColA[i * 3 + 2] = look.ca.b;
+    aColB[i * 3] = look.cb.r; aColB[i * 3 + 1] = look.cb.g; aColB[i * 3 + 2] = look.cb.b;
+    aStone[i * 4] = look.sd; aStone[i * 4 + 1] = look.speckle; aStone[i * 4 + 2] = look.rust; aStone[i * 4 + 3] = look.lich;
   }
   geo.setAttribute('aColA', new THREE.BufferAttribute(aColA, 3));
   geo.setAttribute('aColB', new THREE.BufferAttribute(aColB, 3));
   geo.setAttribute('aStone', new THREE.BufferAttribute(aStone, 4));
-  geo.userData.band = variant.band;
+  geo.setAttribute('aFresh', new THREE.BufferAttribute(freshArr || new Float32Array(n), 1));
+}
 
-  // Physics hull points from a coarse sampling of the same surface.
-  const hullBase = unitSphere(cls === 'hearting' ? 1 : 3);
-  const hp = new Float32Array(hullBase.attributes.position.count * 3);
+// (Re)build render mesh + physics hull from the stone's shape function.
+export function buildStoneGeometry(st) {
+  const { shape } = st;
+  const geo = unitSphere(st.detail).clone();
+  const pos = geo.attributes.position;
+  const v = new THREE.Vector3();
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity), max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  const fresh = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    const rr = shape.r(v.x, v.y, v.z);
+    fresh[i] = shape.fresh();
+    v.multiplyScalar(rr);
+    pos.setXYZ(i, v.x, v.y, v.z);
+    min.min(v); max.max(v);
+  }
+  geo.computeVertexNormals();
+  lookAttributes(geo, st.look, fresh);
+  geo.userData.band = st.band;
+  // physics hull: coarse sampling of the same surface, plus extra samples on fresh faces
+  const hullBase = unitSphere(st.hullDetail);
+  const pts = [];
   for (let i = 0; i < hullBase.attributes.position.count; i++) {
     v.fromBufferAttribute(hullBase.attributes.position, i).normalize();
     v.multiplyScalar(shape.r(v.x, v.y, v.z));
-    hp[i * 3] = v.x; hp[i * 3 + 1] = v.y; hp[i * 3 + 2] = v.z;
+    pts.push(v.x, v.y, v.z);
   }
-  const size = new THREE.Vector3().subVectors(max, min);
+  for (const c of shape.cuts) {
+    // corners of the dressed face so the hull keeps it flat
+    for (let i = 0; i < pos.count; i += 7) if (fresh[i] > 0.9) pts.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+    break;
+  }
+  if (st.geometry) st.geometry.dispose();
+  st.geometry = geo;
+  st.hullPoints = new Float32Array(pts);
+  st.size = new THREE.Vector3().subVectors(max, min);
+  st.min = min; st.max = max;
   geo.computeBoundingSphere();
-  return { geometry: geo, hullPoints: hp, size, min, max, cls, type: typeKey, band: variant.band };
+  return st;
+}
+
+// Fraction of the stone's volume beyond a plane. Mesh vertices sit at roughly
+// even solid angles, so each stands for a cone of volume ∝ r³.
+export function cutFraction(st, n, h) {
+  const pos = st.geometry.attributes.position;
+  let tot = 0, cut = 0;
+  for (let i = 0; i < pos.count; i += 2) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const r = Math.hypot(x, y, z);
+    const r3 = r * r * r;
+    tot += r3;
+    const nd = (n.x * x + n.y * y + n.z * z) / r;
+    if (nd > 1e-4) {
+      const tc = h / nd;
+      if (tc < r) cut += r3 - Math.max(0, tc) ** 3;
+    }
+  }
+  return tot ? cut / tot : 0;
+}
+
+// Knock a piece off with the hammer. Plane in stone-local space: points with
+// n·p > h are removed. Returns the flake as a new stone-like object (or null
+// for dust), with its geometry centred on its own centroid.
+export function dressStone(st, n, h) {
+  const old = st.geometry.attributes.position;
+  const v = new THREE.Vector3();
+  let beyond = 0;
+  const flakePts = [];
+  for (let i = 0; i < old.count; i++) {
+    v.fromBufferAttribute(old, i);
+    const d = v.dot(n) - h;
+    if (d > 0) { beyond++; flakePts.push(v.clone(), v.clone().addScaledVector(n, -d)); }
+  }
+  const frac = cutFraction(st, n, h);
+  if (beyond === 0) return { removed: 0 };
+  if (frac > 0.42) return { refused: true, frac };
+  st.shape.cuts.push({ n: n.clone(), h });
+  st.cuts++;
+  buildStoneGeometry(st);
+  // flake
+  if (flakePts.length < 12) return { removed: frac, flake: null };
+  const fmin = new THREE.Vector3(Infinity, Infinity, Infinity), fmax = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  for (const p of flakePts) { fmin.min(p); fmax.max(p); }
+  const fsize = new THREE.Vector3().subVectors(fmax, fmin);
+  if (Math.max(fsize.x, fsize.y, fsize.z) < 0.022) return { removed: frac, flake: null, dust: true };
+  let geo;
+  try { geo = new ConvexGeometry(flakePts); } catch (e) { return { removed: frac, flake: null, dust: true }; }
+  geo.deleteAttribute('uv');
+  geo.computeBoundingBox();
+  const c = new THREE.Vector3();
+  // centroid of the points (good enough as an origin)
+  for (const p of flakePts) c.add(p);
+  c.divideScalar(flakePts.length);
+  geo.translate(-c.x, -c.y, -c.z);
+  const fp = geo.attributes.position;
+  const fresh = new Float32Array(fp.count);
+  const hc = h - c.dot(n);
+  for (let i = 0; i < fp.count; i++) { v.fromBufferAttribute(fp, i); fresh[i] = Math.abs(v.dot(n) - hc) < 0.0015 ? 1 : 0.15; }
+  lookAttributes(geo, { ...st.look, lich: st.look.lich * 0.6 }, fresh);
+  geo.computeBoundingSphere();
+  // hull points (subsample)
+  const hp = [];
+  const step = Math.max(1, Math.floor(fp.count / 90));
+  for (let i = 0; i < fp.count; i += step) hp.push(fp.getX(i), fp.getY(i), fp.getZ(i));
+  const lmin = fmin.clone().sub(c), lmax = fmax.clone().sub(c);
+  const flake = {
+    geometry: geo, hullPoints: new Float32Array(hp), size: fsize, min: lmin, max: lmax,
+    cls: 'shard', type: st.type, band: st.band, look: st.look, centroid: c, shape: null,
+  };
+  return { removed: frac, flake };
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +396,14 @@ export const sharedUniforms = {
 
 export function getStoneMaterial(typeKey) {
   if (materialCache.has(typeKey)) return materialCache.get(typeKey);
+  const mat = makeStoneMaterial(typeKey);
+  materialCache.set(typeKey, mat);
+  return mat;
+}
+
+// A separate instance (same compiled program) with its own uniforms — used to
+// show the hammer's cut on just one stone.
+export function makeStoneMaterial(typeKey) {
   const t = STONE_TYPES[typeKey];
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: t.roughness, metalness: 0.0 });
   const lt = t.lichenTint.map((h) => new THREE.Color(h));
@@ -282,17 +416,19 @@ export function getStoneMaterial(typeKey) {
     uLichA: { value: lt[0] }, uLichB: { value: lt[1] }, uLichC: { value: lt[2] },
     uRough: { value: t.roughness },
     uHighlight: { value: 0 },
+    uCut: { value: new THREE.Vector4(0, 1, 0, 1) },
+    uCutOn: { value: 0 },
   };
   mat.userData.uniforms = uniforms;
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, sharedUniforms);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
-        attribute vec3 aColA; attribute vec3 aColB; attribute vec4 aStone;
+        attribute vec3 aColA; attribute vec3 aColB; attribute vec4 aStone; attribute float aFresh; attribute float aFit;
         varying vec3 vObjPos; varying vec3 vColA; varying vec3 vColB; varying vec4 vStone;
-        varying vec3 vWPos; varying vec3 vWNormal;`)
+        varying vec3 vWPos; varying vec3 vWNormal; varying float vFresh; varying float vFit;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        vObjPos = position; vColA = aColA; vColB = aColB; vStone = aStone;`)
+        vObjPos = position; vColA = aColA; vColB = aColB; vStone = aStone; vFresh = aFresh; vFit = aFit;`)
       .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
         vec4 wp4 = vec4(transformed, 1.0);
         #ifdef USE_INSTANCING
@@ -313,14 +449,16 @@ export function getStoneMaterial(typeKey) {
         ${CAUSTIC_GLSL}
         uniform float uBedFreq, uBedAmt, uPits, uGrain, uSharpMix, uRough, uHighlight, uWet;
         uniform vec3 uLichA, uLichB, uLichC;
+        uniform vec4 uCut; uniform float uCutOn;
         varying vec3 vObjPos; varying vec3 vColA; varying vec3 vColB; varying vec4 vStone;
-        varying vec3 vWPos; varying vec3 vWNormal;
-        float gHeight; float gLichen; float gRoughAdd;`)
+        varying vec3 vWPos; varying vec3 vWNormal; varying float vFresh; varying float vFit;
+        float gHeight; float gLichen; float gRoughAdd; float gCutLine;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         {
           vec3 p = vObjPos * 6.0 + vStone.x * 37.0;
           float seed = vStone.x;
-          float speck = vStone.y, rust = vStone.z, lich = clamp(vStone.w, 0.0, 1.0);
+          float fresh = clamp(vFresh, 0.0, 1.0);
+          float speck = vStone.y, rust = vStone.z * (1.0 - fresh), lich = clamp(vStone.w, 0.0, 1.0) * (1.0 - fresh);
           float px = length(fwidth(vObjPos)) * 0.4;
           float lodHi = 1.0 - smoothstep(0.0009, 0.0028, px);
           float lodMid = 1.0 - smoothstep(0.0025, 0.008, px);
@@ -367,15 +505,26 @@ export function getStoneMaterial(typeKey) {
           col = mix(col, uLichC, orange * 0.75);
           // dirt in hollows
           float cav = fbm3(p * 2.5 + 5.0);
-          col *= 0.84 + 0.16 * smoothstep(-0.5, 0.3, cav);
+          col *= mix(0.84 + 0.16 * smoothstep(-0.5, 0.3, cav), 1.0, fresh);
+          // freshly dressed face: the unweathered heart of the stone, lighter and cleaner
+          vec3 freshCol = mix(vColB, vec3(dot(vColB, vec3(0.333))), 0.25) * 1.18 * (0.95 + 0.1 * snoise(vObjPos * 40.0));
+          col = mix(col, freshCol * (0.9 + 0.2 * mixT), fresh * 0.85);
           // height for bump
-          gHeight = fbm5(p * 1.3) * 0.0035
+          gHeight = fbm5(p * 1.3) * 0.0028
                   + snoise(vObjPos * 90.0) * 0.00028 * (0.5 + uGrain) * lodHi
-                  + snoise(vObjPos * 32.0 + 3.0) * 0.0012 * lodMid + abs(snoise(vObjPos * 14.0 + 9.0)) * 0.0012
+                  + snoise(vObjPos * 32.0 + 3.0) * 0.00035 * lodMid + abs(snoise(vObjPos * 14.0 + 9.0)) * 0.0006
                   - pit * 0.0025
                   + bands * 0.0003 * bandAmt * lodMid
-                  + gLichen * 0.0005;
-          gRoughAdd = gLichen * 0.08 + pit * 0.05;
+                  + gLichen * 0.0005
+                  + fresh * abs(snoise(vObjPos * 55.0 + 4.0)) * 0.0007 * lodMid;
+          gRoughAdd = gLichen * 0.08 + pit * 0.05 + fresh * 0.05;
+          // hammer cut preview
+          gCutLine = 0.0;
+          if (uCutOn > 0.5) {
+            float sd = dot(uCut.xyz, vObjPos) - uCut.w;
+            if (sd > 0.0) col = mix(col, vec3(0.95, 0.55, 0.28), 0.42);
+            gCutLine = 1.0 - smoothstep(0.0, 0.0022, abs(sd));
+          }
           col *= 1.0 - uWet * 0.08;
           diffuseColor.rgb = col;
         }`)
@@ -388,10 +537,12 @@ export function getStoneMaterial(typeKey) {
           float up = clamp(vWNormal.y * 0.8 + 0.2, 0.0, 1.0);
           totalEmissiveRadiance += diffuseColor.rgb * causticPattern(vWPos) * uCaustic * up;
         }
-        totalEmissiveRadiance += vec3(1.0, 0.8, 0.4) * uHighlight * 0.04;`);
+        totalEmissiveRadiance += vec3(1.0, 0.8, 0.4) * uHighlight * 0.04;
+        totalEmissiveRadiance += vec3(1.0, 0.72, 0.4) * gCutLine * 1.6;
+        // fit light: where the held stone will bear (green) and where it gaps (amber)
+        totalEmissiveRadiance += vec3(0.35, 0.95, 0.45) * max(vFit, 0.0) * 0.55 + vec3(1.0, 0.55, 0.18) * max(-vFit, 0.0) * 0.4;`);
   };
   mat.customProgramCacheKey = () => 'stone-' + typeKey;
-  materialCache.set(typeKey, mat);
   return mat;
 }
 

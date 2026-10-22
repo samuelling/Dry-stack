@@ -16,6 +16,18 @@ No mortar, no score chasing, no music. Just wind in the grass and birdsong (or t
 - **Craft notes** that read your wall the way a waller would: footing coverage, traced stones, stones proud of the line, running joints (marked in red on the face), how well the hearting is packed, throughs and copes.
 - **All sound is synthesised** in the browser: gusting wind, grass, regional birds (chickadee, white-throated sparrow and blue jay in New England; robin, wren, curlew and skylark in Britain and Ireland), crickets, the city, the sea, and modal-synthesis stone impacts whose pitch depends on each stone's size and type.
 
+## Focus mode
+
+The slow part of the craft. Two footing faces are already laid, and the pile is yours to read.
+
+- **Look closely:** double-click or press Z to glide in on a spot. Wheel zooms right down to the grain; right-drag or the arrow keys orbit, even while carrying a stone.
+- **Examine (V):** hold a stone up in front of you and turn it over with the mouse to read its faces.
+- **Fit light (L):** while carrying, the stone glows green where it bears and amber where it only nearly touches; a readout says whether it would rock.
+- **Hammer (2):** aim a cut, set the bite with `[` `]` or Shift+wheel, tilt with Q/E, and strike. Chips fall as real flakes you can pick up.
+- **Pinning and shims:** small shards and thin pinning stones wedge a stone or pack the hearting.
+- **Press (X):** lean on a placed stone to feel whether it rocks.
+- **Soft focus (B):** depth of field follows what you are looking at.
+
 ## Controls
 
 | | |

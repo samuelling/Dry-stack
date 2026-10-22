@@ -58,10 +58,41 @@ export class Physics {
     cd.setDensity(2600).setFriction(friction).setRestitution(0.03);
     const collider = this.world.createCollider(cd, body);
     if (stone.cls === 'hearting') body.enableCcd(true);
-    stone.body = body; stone.collider = collider;
+    stone.body = body; stone.collider = collider; stone.friction = friction;
     stone.mass = body.mass();
     this.bodies.set(collider.handle, stone);
     return body;
+  }
+
+  // new hull after dressing: swap the collider, keep the body (and its pose)
+  replaceCollider(stone) {
+    const cd = RAPIER.ColliderDesc.convexHull(stone.hullPoints);
+    if (!cd) return false;
+    const old = stone.collider;
+    this.bodies.delete(old.handle);
+    this.world.removeCollider(old, false);
+    cd.setDensity(2600).setFriction(stone.friction).setRestitution(0.03);
+    stone.collider = this.world.createCollider(cd, stone.body);
+    this.bodies.set(stone.collider.handle, stone);
+    stone.mass = stone.collider.mass(); // body mass updates on the next step
+    stone.body.wakeUp();
+    return true;
+  }
+
+  setGhost(stone, on) {
+    stone.collider.setCollisionGroups(on ? 0x00000000 : 0xffffffff);
+  }
+
+  // contact points (world) between a stone and everything it touches
+  contactPoints(stone) {
+    const pts = [];
+    this.world.contactPairsWith(stone.collider, (other) => {
+      this.world.contactPair(stone.collider, other, (m) => {
+        const n = m.numSolverContacts();
+        for (let i = 0; i < n; i++) { const p = m.solverContactPoint(i); pts.push({ x: p.x, y: p.y, z: p.z, ground: this.groundHandles.has(other.handle) }); }
+      });
+    });
+    return pts;
   }
 
   removeStone(stone) {

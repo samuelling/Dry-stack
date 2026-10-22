@@ -58,7 +58,7 @@ export function analyseWall(game) {
     const hw = spec.halfWidth(Math.max(0, yc));
     const info = { s, b, yRel, yc, hw };
     res.stones.push(info);
-    if (s.cls === 'hearting') { res.hearting++; continue; }
+    if (s.cls === 'hearting' || s.cls === 'pinning' || s.cls === 'shard') { res.hearting++; continue; }
     // through stones span the wall
     const span = b.maxZ - b.minZ;
     if (span >= 2 * hw * 0.85 && yc > 0.25 * H && yc < 0.85 * H) { res.throughs++; info.through = true; }

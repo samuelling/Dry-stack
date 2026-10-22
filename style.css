@@ -145,3 +145,12 @@ h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: 
   #holdbar { bottom: 70px; max-width: calc(100vw - 16px); overflow-x: auto; }
   .menu-inner { padding: 36px 16px 48px; }
 }
+
+#toolbar button.tool.on { background: rgba(233,196,106,0.16); color: var(--ink); }
+#hammerInfo { position: fixed; pointer-events: none; padding: 5px 10px; border-radius: 8px; background: var(--glass-2); border: 1px solid var(--line); font-size: 12px; transform: translate(16px, 16px); white-space: nowrap; }
+#hammerInfo b { font-family: var(--serif); font-size: 15px; }
+.flabel { position: fixed; left: 0; top: 0; pointer-events: none; padding: 6px 11px; border-radius: 10px; background: var(--glass-2); border: 1px solid var(--line); font-family: var(--serif); font-size: 16px; white-space: nowrap; transition: opacity .3s; }
+.flabel.good { border-color: rgba(159,174,123,.6); }
+.flabel.warn { border-color: rgba(233,196,106,.6); }
+.flabel.bad { border-color: rgba(200,117,74,.7); }
+#fitRead { font-size: 12px; margin-right: 8px; white-space: nowrap; }

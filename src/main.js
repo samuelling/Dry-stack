@@ -6,6 +6,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { Craft } from './craft.js';
 
 import { Physics } from './physics.js';
 import { STONE_TYPES, generateStone, getStoneMaterial, sharedUniforms } from './stones.js';
@@ -83,7 +85,7 @@ class Game {
 
     const scene = new THREE.Scene();
     this.scene = scene;
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 5000);
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.02, 5000);
     this.camera = camera;
 
     const underwater = cfg.setting === 'underwater';
@@ -136,6 +138,7 @@ class Game {
     await setLoad(underwater ? 'Lowering the stone…' : 'Carting the stone…');
     this.stones = [];
     await this.makePile();
+    if (cfg.mode === 'focus') { await setLoad('Laying the footings…'); await this.layFootings(); }
     await setLoad('Letting it settle…');
     for (let i = 0; i < 5; i++) {
       for (let k = 0; k < 70; k++) this.physics.world.step();
@@ -144,11 +147,13 @@ class Game {
     this.syncAll(true);
 
     // camera + controls
-    camera.position.set(1.9, spec.ground(0) + 2.1, 3.9);
+    if (cfg.mode === 'focus') camera.position.set(0.55, spec.ground(0) + 0.95, 1.25);
+    else camera.position.set(1.9, spec.ground(0) + 2.1, 3.9);
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, spec.ground(0) + 0.35, 0);
+    controls.target.set(0, spec.ground(0) + (cfg.mode === 'focus' ? 0.22 : 0.35), 0);
     controls.enableDamping = true; controls.dampingFactor = 0.08;
-    controls.minDistance = 0.7; controls.maxDistance = 24;
+    controls.minDistance = 0.18; controls.maxDistance = 24;
+    controls.zoomSpeed = 0.8; controls.rotateSpeed = 0.7;
     controls.maxPolarAngle = 1.5;
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     controls.screenSpacePanning = false;
@@ -171,6 +176,11 @@ class Game {
       composer.addPass(gtao);
       this.gtao = gtao;
     }
+    // depth of field: soft focus beyond the stone you're looking at (Focus mode, B toggles)
+    this.bokeh = new BokehPass(scene, camera, { focus: 1.2, aperture: 0.004, maxblur: 0.007 });
+    this.bokeh.enabled = cfg.mode === 'focus' && cfg.quality !== 'low';
+    this.focusDist = 1.2;
+    composer.addPass(this.bokeh);
     composer.addPass(new OutputPass());
     this.grade = new ShaderPass(GradeShader);
     if (underwater) this.grade.uniforms.uTint.value.set(0.96, 1.02, 1.04);
@@ -185,6 +195,7 @@ class Game {
     this.steps = makeSteps(spec, STONE_TYPES[cfg.stone].name);
     this.physics.onImpact = null;
     this.makeJointMarkers();
+    this.craft = new Craft(this);
 
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('keydown', (e) => this.onKey(e));
@@ -205,6 +216,7 @@ class Game {
       through: Math.max(2, Math.round(L / 0.9) + 1),
       cope: Math.ceil(L / 0.115) + 3,
       hearting: Math.round(L * 55),
+      pinning: Math.round(L * 16) + 8,
     };
   }
 
@@ -282,8 +294,103 @@ class Game {
       const cone = (0.42 - r) * 0.55;
       this.addStone('hearting', seed++, x, z, rng() * 6.28, { y: this.env.height(x, z) + cone + rng() * 0.25, tilt: rand(rng, -1, 1), roll: rand(rng, -1, 1) });
     }
+    // pinnings: thin wedges laid out flat near the work, easy to see and pick
+    for (let i = 0; i < n.pinning; i++) {
+      const x = -half - 0.55 - (i % 4) * 0.13 + rand(rng, -0.02, 0.02), z = 0.75 + Math.floor(i / 4) * 0.11 + rand(rng, -0.02, 0.02);
+      this.addStone('pinning', seed++, x, z, rng() * 6.28);
+    }
     this.seed = seed;
     this.heaps = heaps;
+  }
+
+  // Focus mode starts on a laid course of footings with their hearting, so
+  // the work is the slow middle of the wall: fitting, dressing, pinning.
+  async layFootings() {
+    const spec = this.spec, L = spec.L, W = this.physics.world;
+    const cands = this.stones.filter((s) => (s.cls === 'foundation' || s.cls === 'builder') && s.size.x <= 0.44 && s.size.x >= 0.24)
+      .sort((a, b) => b.size.y - a.size.y);
+    const used = new Set();
+    const v = new THREE.Vector3();
+    const qOf = (yaw) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    const bounds = (s, q) => {
+      const b = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+      const hp = s.hullPoints;
+      for (let i = 0; i < hp.length; i += 3) { v.set(hp[i], hp[i + 1], hp[i + 2]).applyQuaternion(q); b.minX = Math.min(b.minX, v.x); b.maxX = Math.max(b.maxX, v.x); b.minZ = Math.min(b.minZ, v.z); b.maxZ = Math.max(b.maxZ, v.z); }
+      return b;
+    };
+    const restY = (s, x, z, q) => {
+      const hit = W.castShape({ x, y: 2, z }, { x: q.x, y: q.y, z: q.z, w: q.w }, { x: 0, y: -1, z: 0 }, s.collider.shape, 0, 4, true, undefined, undefined, s.collider, s.body);
+      return hit ? 2 - hit.time_of_impact : spec.ground(x) + 0.1;
+    };
+    const hw = spec.halfWidth(0.08);
+    for (const side of [1, -1]) {
+      let x = -L / 2 + 0.02 + (side < 0 ? 0.13 : 0);
+      for (const s of cands) {
+        if (used.has(s)) continue;
+        if (x > L / 2 - 0.08) break;
+        const q = qOf(side > 0 ? -Math.PI / 2 : Math.PI / 2);
+        const b = bounds(s, q);
+        if (x + (b.maxX - b.minX) > L / 2 + 0.06) continue;
+        used.add(s);
+        const xc = x - b.minX;
+        const zc = side > 0 ? hw - b.maxZ : -hw - b.minZ;
+        const y = restY(s, xc, zc, q) + 0.004;
+        s.body.setTranslation({ x: xc, y, z: zc }, true);
+        s.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+        s.body.setLinvel({ x: 0, y: 0, z: 0 }, true); s.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        for (let k = 0; k < 8; k++) W.step();
+        x += (b.maxX - b.minX) + 0.008;
+      }
+    }
+    for (let k = 0; k < 60; k++) W.step();
+    // hearting packed between the faces
+    const heart = this.stones.filter((s) => s.cls === 'hearting');
+    let hi = 0;
+    for (let pass = 0; pass < 3; pass++) {
+      for (let x = -L / 2 + 0.08; x < L / 2 - 0.05 && hi < heart.length; x += 0.075) {
+        const s = heart[hi++];
+        const z = (Math.random() - 0.5) * 0.12;
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * 3, Math.random() * 3, 0));
+        s.body.setTranslation({ x, y: restY(s, x, z, q) + 0.02, z }, true);
+        s.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+        s.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        W.step(); W.step();
+      }
+      for (let k = 0; k < 40; k++) W.step();
+      await nextFrame();
+    }
+    for (let k = 0; k < 150; k++) W.step();
+  }
+
+  // a flake knocked off by the hammer becomes a stone of its own
+  addFlake(flake, parent, normalW) {
+    const mesh = new THREE.Mesh(flake.geometry, getStoneMaterial(this.cfg.stone));
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    const t = parent.body.translation(), r = parent.body.rotation();
+    const q = new THREE.Quaternion(r.x, r.y, r.z, r.w);
+    const c = flake.centroid.clone().applyQuaternion(q).add(new THREE.Vector3(t.x, t.y, t.z)).addScaledVector(normalW, 0.006);
+    const stone = { ...flake, mesh, cls: 'shard', seed: this.seed++ };
+    this.physics.addStone(stone, c.x, c.y, c.z, { x: q.x, y: q.y, z: q.z, w: q.w }, STONE_TYPES[this.cfg.stone].friction);
+    const kick = 0.35 + Math.random() * 0.4;
+    stone.body.setLinvel({ x: normalW.x * kick, y: normalW.y * kick + 0.4, z: normalW.z * kick }, true);
+    stone.body.setAngvel({ x: rand(Math.random, -6, 6), y: rand(Math.random, -6, 6), z: rand(Math.random, -6, 6) }, true);
+    stone.body.enableCcd(true);
+    mesh.userData.stone = stone;
+    stone.prevV = new THREE.Vector3();
+    stone.lastSound = 0;
+    this.stones.push(stone);
+    return stone;
+  }
+
+  // glide the view in close to a point
+  flyTo(point, dist = 0.75) {
+    const c = this.controls;
+    const dir = this.camera.position.clone().sub(c.target).normalize();
+    this.fly = {
+      t: 0, fromT: c.target.clone(), toT: point.clone(),
+      fromP: this.camera.position.clone(), toP: point.clone().addScaledVector(dir, dist),
+    };
   }
 
   syncAll(force = false) {
@@ -324,7 +431,10 @@ class Game {
     }
   }
 
-  onStonePlaced() { this.lastAnalysis = -10; }
+  onStonePlaced(s) {
+    this.lastAnalysis = -10;
+    if (s) this.pendingBearing = { s, t: 0 };
+  }
 
   // ---------------------------------------------------------------- light
   applyTime(time, initial = false) {
@@ -394,6 +504,7 @@ class Game {
     else if (a === 'into') it.turnIntoWall();
     else if (a === 'edge') it.standOnEdge();
     else if (a === 'drop') it.release();
+    else if (a === 'examine') { if (it.examining) it.endExamine(); else it.startExamine(); }
   }
 
   togglePhoto() {
@@ -410,6 +521,8 @@ class Game {
     else if (k === 'n') this.ui.togglePanel();
     else if (k === 'm') this.action('sound');
     else if (k === 'u' && this.snapshot) this.restoreSnapshot();
+    else if (k === 'l') { this.craft.fitOn = !this.craft.fitOn; if (!this.craft.fitOn && this.interaction.held) this.craft.clearFit(this.interaction.held); this.ui.toast(this.craft.fitOn ? 'Fit light on — green bears, amber gaps' : 'Fit light off', 1600); }
+    else if (k === 'b' && this.cfg.quality !== 'low') { this.bokeh.enabled = !this.bokeh.enabled; this.ui.toast(this.bokeh.enabled ? 'Soft focus on' : 'Soft focus off', 1200); }
   }
 
   pourHearting() {
@@ -561,18 +674,40 @@ class Game {
 
   moveCamera(dt) {
     const keys = this.interaction.keys;
+    const c = this.controls;
+    // glide in (double-click / Z)
+    if (this.fly) {
+      this.fly.t = Math.min(1, this.fly.t + dt / 0.7);
+      const e = this.fly.t * this.fly.t * (3 - 2 * this.fly.t);
+      c.target.lerpVectors(this.fly.fromT, this.fly.toT, e);
+      this.camera.position.lerpVectors(this.fly.fromP, this.fly.toP, e);
+      if (this.fly.t >= 1) this.fly = null;
+    }
+    // arrow keys orbit when your hands are empty
+    if (!this.interaction.held) {
+      const yaw = (keys.has('arrowleft') ? 1 : 0) - (keys.has('arrowright') ? 1 : 0);
+      const pitch = (keys.has('arrowup') ? 1 : 0) - (keys.has('arrowdown') ? 1 : 0);
+      if (yaw || pitch) {
+        const off = this.camera.position.clone().sub(c.target);
+        const sph = new THREE.Spherical().setFromVector3(off);
+        sph.theta += yaw * dt * 1.1;
+        sph.phi = THREE.MathUtils.clamp(sph.phi - pitch * dt * 0.8, 0.12, c.maxPolarAngle);
+        this.camera.position.copy(c.target).add(off.setFromSpherical(sph));
+      }
+    }
     const f = (keys.has('w') ? 1 : 0) - (keys.has('s') ? 1 : 0);
     const r = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
     if (!f && !r) return;
     const fwd = new THREE.Vector3(); this.camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
     const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));
-    const mv = fwd.multiplyScalar(f).add(right.multiplyScalar(r)).multiplyScalar(dt * 2.2);
-    const tg = this.controls.target.clone().add(mv);
+    const speed = THREE.MathUtils.clamp(this.camera.position.distanceTo(c.target) * 0.8, 0.25, 2.2);
+    const mv = fwd.multiplyScalar(f).add(right.multiplyScalar(r)).multiplyScalar(dt * speed);
+    const tg = c.target.clone().add(mv);
     tg.x = THREE.MathUtils.clamp(tg.x, -this.spec.L / 2 - 5, this.spec.L / 2 + 5);
     tg.z = THREE.MathUtils.clamp(tg.z, -5, 5);
-    const d = tg.clone().sub(this.controls.target);
-    d.y = this.spec.ground(tg.x) + 0.35 - this.controls.target.y;
-    this.controls.target.add(d);
+    const d = tg.clone().sub(c.target);
+    d.y = this.spec.ground(tg.x) - this.spec.ground(c.target.x);
+    c.target.add(d);
     this.camera.position.add(d);
   }
 
@@ -581,6 +716,24 @@ class Game {
     this.elapsed += dt;
     const t = this.elapsed;
     this.interaction.update(dt);
+    this.craft.update(dt);
+    if (this.pendingBearing) {
+      const pb = this.pendingBearing;
+      pb.t += dt;
+      const v = pb.s.body.linvel();
+      if ((pb.t > 0.6 && Math.hypot(v.x, v.y, v.z) < 0.02) || pb.t > 2.5) {
+        this.craft.bearing(pb.s, ['hearting', 'pinning', 'shard'].includes(pb.s.cls));
+        this.pendingBearing = null;
+      }
+    }
+    if (this.bokeh.enabled) {
+      const held = this.interaction.held;
+      const p = held ? held.mesh.position : this.controls.target;
+      const want = this.camera.position.distanceTo(p);
+      this.focusDist += (want - this.focusDist) * Math.min(1, dt * 4);
+      this.bokeh.uniforms.focus.value = this.focusDist;
+      this.bokeh.uniforms.aperture.value = 0.0035 / Math.max(0.4, this.focusDist);
+    }
     this.updateWeather(dt);
     this.physics.step(dt, (h) => this.interaction.steer(h), () => this.detectImpacts());
     this.syncAll();

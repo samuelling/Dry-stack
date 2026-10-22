@@ -1,7 +1,7 @@
 // HUD: lesson panel, craft notes, hints, tooltips, toolbar.
 const $ = (s) => document.querySelector(s);
 
-const CLASS_NAMES = { foundation: 'Footing stone', builder: 'Builder', through: 'Through stone', cope: 'Cope', hearting: 'Hearting' };
+const CLASS_NAMES = { foundation: 'Footing stone', builder: 'Builder', through: 'Through stone', cope: 'Cope', hearting: 'Hearting', pinning: 'Pinning', shard: 'Flake' };
 
 export class UI {
   constructor(game) {
@@ -14,8 +14,10 @@ export class UI {
     $('#panelToggle').addEventListener('click', () => this.togglePanel());
     if (game.cfg.mode !== 'lesson') document.querySelector('#panel .tabs button[data-tab="lesson"]').classList.add('hidden');
     this.setTab(this.tab);
-    this.hintIdle = `<kbd>Click</kbd> a stone to lift it &nbsp;·&nbsp; <kbd>Drag</kbd> to look around &nbsp;·&nbsp; <kbd>WASD</kbd> walk the line &nbsp;·&nbsp; <kbd>H</kbd> hearting`;
-    this.hintHold = `<kbd>Wheel</kbd>/<kbd>Q</kbd><kbd>E</kbd> turn &nbsp;·&nbsp; <kbd>R</kbd><kbd>F</kbd> tip &nbsp;·&nbsp; <kbd>T</kbd> length in &nbsp;·&nbsp; <kbd>C</kbd> on edge &nbsp;·&nbsp; hold <kbd>Space</kbd> press in &nbsp;·&nbsp; <kbd>Click</kbd> set down &nbsp;·&nbsp; <kbd>Shift</kbd> fine`;
+    if (game.cfg.mode === 'focus') this.togglePanel();
+    this.hintIdle = `<kbd>Click</kbd> lift a stone &nbsp;·&nbsp; <kbd>Drag</kbd>/<kbd>Right-drag</kbd>/<kbd>←→↑↓</kbd> look around &nbsp;·&nbsp; <kbd>Wheel</kbd> zoom &nbsp;·&nbsp; <kbd>Double-click</kbd> look closely &nbsp;·&nbsp; <kbd>2</kbd> hammer &nbsp;·&nbsp; <kbd>X</kbd> press`;
+    this.hintHold = `<kbd>Q</kbd><kbd>E</kbd>/<kbd>Shift+wheel</kbd> turn &nbsp;·&nbsp; <kbd>R</kbd><kbd>F</kbd> tip &nbsp;·&nbsp; <kbd>T</kbd> length in &nbsp;·&nbsp; <kbd>V</kbd> examine &nbsp;·&nbsp; <kbd>←→↑↓</kbd> nudge &nbsp;·&nbsp; hold <kbd>Space</kbd> press in &nbsp;·&nbsp; <kbd>L</kbd> fit light &nbsp;·&nbsp; <kbd>Right-drag</kbd> orbit &nbsp;·&nbsp; <kbd>Click</kbd> set`;
+    this.hintHammer = `<kbd>Click</kbd> strike &nbsp;·&nbsp; <kbd>Shift+wheel</kbd> or <kbd>[</kbd><kbd>]</kbd> bite &nbsp;·&nbsp; <kbd>Q</kbd><kbd>E</kbd> angle of the blow &nbsp;·&nbsp; <kbd>Right-drag</kbd> orbit &nbsp;·&nbsp; <kbd>1</kbd> back to hands`;
     $('#hints').innerHTML = this.hintIdle;
   }
 
@@ -114,4 +116,30 @@ export class UI {
   }
 
   setPhoto(on) { this.hud.classList.toggle('photo', on); }
+
+  fitReadout(n, margin) {
+    let el = document.getElementById('fitRead');
+    if (!el) { el = document.createElement('span'); el.id = 'fitRead'; document.getElementById('holdName').after(el); }
+    if (n === null || n === undefined) { el.textContent = ''; el.className = ''; return; }
+    if (n >= 3 && margin > 0.015) { el.textContent = `bears on ${n} · steady`; el.className = 'good'; }
+    else if (n >= 3 && margin > 0) { el.textContent = `bears on ${n} · near the edge`; el.className = 'warn'; }
+    else if (n > 0) { el.textContent = `bears on ${n} · would rock`; el.className = 'bad'; }
+    else { el.textContent = 'clear of everything'; el.className = ''; }
+  }
+
+  setTool(t) {
+    document.querySelectorAll('#toolbar .tool').forEach((b) => b.classList.toggle('on', b.dataset.act === t));
+    $('#hints').innerHTML = t === 'hammer' ? this.hintHammer : this.hintIdle;
+    if (t !== 'hammer') this.hammerInfo(null);
+  }
+
+  hammerInfo(info) {
+    const el = $('#hammerInfo');
+    if (!info) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    const pct = Math.round(info.frac * 100);
+    const cls = info.frac > 0.42 ? 'bad' : info.frac > 0.2 ? 'warn' : '';
+    el.innerHTML = `<b>${(info.depth * 100).toFixed(1)} cm</b> bite${info.tilt ? ` · ${Math.round(info.tilt * 57)}°` : ''} <span class="${cls}">· ${pct < 1 ? 'a chip' : pct + '% of the stone'}${info.frac > 0.42 ? ' — too much' : ''}</span>`;
+    if (info.pointer) { el.style.left = info.pointer.x + 'px'; el.style.top = info.pointer.y + 'px'; }
+  }
 }

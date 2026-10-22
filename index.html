@@ -44,7 +44,7 @@
     <section class="row-opts">
       <div class="opt">
         <h3>Mode</h3>
-        <div class="seg" id="modeSeg"><button data-v="lesson">Lesson</button><button data-v="free">Free build</button></div>
+        <div class="seg" id="modeSeg"><button data-v="lesson">Lesson</button><button data-v="focus">Focus</button><button data-v="free">Free build</button></div>
       </div>
       <div class="opt">
         <h3>Length</h3>
@@ -102,11 +102,15 @@
     <button data-act="tip" title="Tip over (R)">⤾</button>
     <button data-act="roll" title="Roll (F)">⤿</button>
     <button data-act="into" title="Length into the wall (T)">⇥ into wall</button>
+    <button data-act="examine" title="Turn it over in your hands (V)">◎ examine</button>
     <button data-act="edge" title="Stand on edge as a cope (C)">▮ on edge</button>
     <button data-act="drop" title="Set down (click)">Set down</button>
   </div>
 
   <div id="toolbar">
+    <button data-act="hand" class="tool on" title="Hands: lift, carry, set (1)"><span>✋</span>Hands</button>
+    <button data-act="hammer" class="tool" title="Walling hammer: dress a stone (2 or G)"><span>⚒</span>Hammer</button>
+    <button data-act="press" title="Press the last stone to feel if it rocks (X over any stone)"><span>X</span>Press</button>
     <button data-act="hearting" title="Pour a handful of hearting where you point (H)"><span>H</span>Hearting</button>
     <button data-act="cart" title="Tip another cartload of stone"><span>+</span>More stone</button>
     <button data-act="weather" title="A century of frost, rain and cattle"><span>❄</span>Weather the wall</button>
@@ -117,6 +121,7 @@
   </div>
 
   <div id="tip" class="hidden"></div>
+  <div id="hammerInfo" class="hidden"></div>
   <div id="toast" class="hidden"></div>
 </div>
 
