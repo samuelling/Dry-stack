@@ -64,7 +64,7 @@ export const REGIONS = {
   },
 };
 
-const Q = { high: { grass: 170000, trees: 420, wall: 7500 }, medium: { grass: 70000, trees: 230, wall: 4500 }, low: { grass: 25000, trees: 100, wall: 2500 } };
+const Q = { lite: { grass: 7000, trees: 36, wall: 1100 }, high: { grass: 170000, trees: 420, wall: 7500 }, medium: { grass: 70000, trees: 230, wall: 4500 }, low: { grass: 25000, trees: 100, wall: 2500 } };
 
 export class Countryside {
   constructor(ctx) {
@@ -98,7 +98,7 @@ export class Countryside {
     this.uTime = { value: 0 };
 
     // terrain
-    const tg = buildTerrainGeometry(this.height, { radius: 900, n: quality === 'low' ? 260 : 380, a: 5.2 });
+    const tg = buildTerrainGeometry(this.height, { radius: 900, n: quality === 'lite' ? 150 : quality === 'low' ? 260 : 380, a: 5.2 });
     const tm = makeGroundMaterial('field', { ...R.ground, highCol: R.highCol, highStart: R.highStart, rockAmt: R.rockAmt, wallL: this.spec.L, wallW: this.spec.base });
     const terrain = new THREE.Mesh(tg, tm);
     terrain.receiveShadow = true;

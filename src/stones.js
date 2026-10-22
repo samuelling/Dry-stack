@@ -251,7 +251,7 @@ export function generateStone(typeKey, cls, seed) {
   const look = { ca, cb, sd: rng(), speckle: variant.speckle, rust: variant.rust, lich };
   const st = {
     shape, look, cls, type: typeKey, band: variant.band, cuts: 0,
-    detail: SIZE_CLASSES[cls].detail, hullDetail: small ? 1 : 3,
+    detail: perf.lite ? Math.max(4, Math.round(SIZE_CLASSES[cls].detail * 0.5)) : SIZE_CLASSES[cls].detail, hullDetail: small ? 1 : 3,
   };
   buildStoneGeometry(st);
   return st;
@@ -388,11 +388,41 @@ export function dressStone(st, n, h) {
 // each stone as it tumbles.
 
 const materialCache = new Map();
+export const perf = { lite: false };
+
 export const sharedUniforms = {
   uTime: { value: 0 },
   uCaustic: { value: 0 },
   uWet: { value: 0 },
 };
+
+// Cheap stone shading for phones: two noise lookups, no bump, no fine grain.
+const LITE_COLOR = `#include <color_fragment>
+  {
+    float seed = vStone.x;
+    float fresh = clamp(vFresh, 0.0, 1.0);
+    float speck = vStone.y, rust = vStone.z * (1.0 - fresh), lich = clamp(vStone.w, 0.0, 1.0) * (1.0 - fresh);
+    vec3 p = vObjPos * 6.0 + seed * 37.0;
+    float n1 = fbm3(p * 0.55);
+    vec3 col = mix(vColA, vColB, smoothstep(-0.45, 0.5, n1));
+    col *= 1.0 + sin(vObjPos.y * uBedFreq * 6.2831 + n1 * 4.0) * 0.05 * max(uBedAmt, 0.0);
+    float ln = snoise(p * 3.2 + seed * 50.0) * 0.6 + snoise(p * 9.0 + seed) * 0.3;
+    float thr = mix(0.62, 0.22, lich);
+    float lm = smoothstep(thr, thr + 0.18, ln);
+    col = mix(col, mix(uLichA, uLichB, 0.5 + 0.5 * n1) * 0.9, lm * 0.5);
+    col *= 0.94 + 0.1 * snoise(vObjPos * 40.0);
+    col = mix(col, col * vec3(1.2, 0.85, 0.62), smoothstep(0.1, 0.7, n1) * rust * 0.6);
+    vec3 freshCol = mix(vColB, vec3(dot(vColB, vec3(0.333))), 0.25) * 1.18;
+    col = mix(col, freshCol, fresh * 0.85);
+    gLichen = lm; gHeight = 0.0; gRoughAdd = lm * 0.08 + fresh * 0.05;
+    gCutLine = 0.0;
+    if (uCutOn > 0.5) {
+      float sd = dot(uCut.xyz, vObjPos) - uCut.w;
+      if (sd > 0.0) col = mix(col, vec3(0.95, 0.55, 0.28), 0.42);
+      gCutLine = 1.0 - smoothstep(0.0, 0.0022, abs(sd));
+    }
+    diffuseColor.rgb = col;
+  }`;
 
 export function getStoneMaterial(typeKey) {
   if (materialCache.has(typeKey)) return materialCache.get(typeKey);
@@ -453,7 +483,7 @@ export function makeStoneMaterial(typeKey) {
         varying vec3 vObjPos; varying vec3 vColA; varying vec3 vColB; varying vec4 vStone;
         varying vec3 vWPos; varying vec3 vWNormal; varying float vFresh; varying float vFit;
         float gHeight; float gLichen; float gRoughAdd; float gCutLine;`)
-      .replace('#include <color_fragment>', `#include <color_fragment>
+      .replace('#include <color_fragment>', perf.lite ? LITE_COLOR : `#include <color_fragment>
         {
           vec3 p = vObjPos * 6.0 + vStone.x * 37.0;
           float seed = vStone.x;
@@ -530,7 +560,7 @@ export function makeStoneMaterial(typeKey) {
         }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor = clamp(uRough + gRoughAdd - uWet * 0.25, 0.25, 1.0);`)
-      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      .replace('#include <normal_fragment_maps>', perf.lite ? '#include <normal_fragment_maps>' : `#include <normal_fragment_maps>
         normal = bumpNormal(-vViewPosition, normal, gHeight * 6.0, faceDirection);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         if (uCaustic > 0.0) {
@@ -542,7 +572,7 @@ export function makeStoneMaterial(typeKey) {
         // fit light: where the held stone will bear (green) and where it gaps (amber)
         totalEmissiveRadiance += vec3(0.35, 0.95, 0.45) * max(vFit, 0.0) * 0.55 + vec3(1.0, 0.55, 0.18) * max(-vFit, 0.0) * 0.4;`);
   };
-  mat.customProgramCacheKey = () => 'stone-' + typeKey;
+  mat.customProgramCacheKey = () => 'stone-' + typeKey + (perf.lite ? '-lite' : '');
   return mat;
 }
 

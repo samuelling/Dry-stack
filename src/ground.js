@@ -1,7 +1,7 @@
 // Procedural ground shading for the three settings.
 import * as THREE from 'three';
 import { NOISE_GLSL, BUMP_GLSL, CAUSTIC_GLSL } from './glsl.js';
-import { sharedUniforms } from './stones.js';
+import { sharedUniforms, perf } from './stones.js';
 
 export function makeGroundMaterial(mode, params = {}) {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0 });
@@ -26,6 +26,7 @@ export function makeGroundMaterial(mode, params = {}) {
     Object.assign(shader.uniforms, uniforms, sharedUniforms);
     shader.defines = shader.defines || {};
     shader.defines['MODE_' + mode.toUpperCase()] = 1;
+    if (perf.lite) shader.defines.LITE = 1;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGPos;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvGPos = (modelMatrix * vec4(transformed,1.0)).xyz;');
@@ -64,20 +65,32 @@ export function makeGroundMaterial(mode, params = {}) {
             float big = fbm3(vec3(wp * 0.006, 0.0));
             float mid = fbm3(vec3(wp * 0.045, 1.0));
             float fine = snoise(vec3(wp * 1.9, 2.0));
+            #ifdef LITE
+            float fine2 = 0.0;
+            #else
             float fine2 = snoise(vec3(wp * 8.0, 3.0));
+            #endif
             c = mix(uGrassA, uGrassB, smoothstep(-0.35, 0.45, big * 0.8 + mid * 0.45));
             c = mix(c, uGrassC, smoothstep(0.15, 0.65, mid * 0.8 - big * 0.3) * 0.7);
             c *= 0.86 + (0.12 * fine + 0.07 * fine2) * detailFade;
             // tussocks and clover flecks close up
+            #ifdef LITE
+            float tuft = 0.0;
+            #else
             float tuft = smoothstep(0.35, 0.7, snoise(vec3(wp * 4.5, 4.0)));
+            #endif
             c = mix(c, uGrassB * 1.1, tuft * 0.25 * detailFade);
             gH += (fine * 0.006 + fine2 * 0.003 + tuft * 0.004) * detailFade;
             // high ground: bracken / heather
             float hs = smoothstep(uHighStart, uHighStart + 10.0, vGPos.y + fbm3(vec3(wp*0.02, 6.0)) * 8.0);
             c = mix(c, uHighCol * (0.85 + 0.2 * mid), hs);
             // limestone pavement
+            #ifdef LITE
+            float pav = 0.0; float grike = 0.0;
+            #else
             float pav = smoothstep(0.5, 0.56, fbm3(vec3(wp * 0.05, 8.0)) + 0.1 * snoise(vec3(wp*0.8, 2.0))) * uRockAmt;
             float grike = smoothstep(0.88, 0.97, abs(sin(wp.x * 1.3 + snoise(vec3(wp*0.4, 1.0)) * 2.0)));
+            #endif
             vec3 rc = uRockCol * (0.85 + 0.15 * fine2) * (1.0 - grike * 0.6);
             c = mix(c, rc, pav);
             gR += pav * -0.15;
@@ -159,7 +172,9 @@ export function makeGroundMaterial(mode, params = {}) {
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + gR, 0.2, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        normal = bumpNormal(-vViewPosition, normal, gH * 6.0, faceDirection);`)
+        #ifndef LITE
+        normal = bumpNormal(-vViewPosition, normal, gH * 6.0, faceDirection);
+        #endif`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         #ifdef MODE_SAND
           totalEmissiveRadiance += diffuseColor.rgb * causticPattern(vGPos) * uCaustic;

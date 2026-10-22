@@ -10,7 +10,7 @@ import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { Craft } from './craft.js';
 
 import { Physics } from './physics.js';
-import { STONE_TYPES, generateStone, getStoneMaterial, sharedUniforms } from './stones.js';
+import { STONE_TYPES, generateStone, getStoneMaterial, sharedUniforms, perf } from './stones.js';
 import { SkySystem } from './sky.js';
 import { sampleHeightfield } from './terrain.js';
 import { WallSpec, Guides } from './wall.js';
@@ -34,7 +34,7 @@ const cfg = {
   mode: params.get('mode') || 'lesson',
   length: parseFloat(params.get('len') || '3'),
   time: params.get('time') || 'afternoon',
-  quality: params.get('q') || (isMobile ? 'low' : 'high'),
+  quality: params.get('q') || (isMobile ? 'lite' : 'high'),
 };
 if (!STONE_TYPES[cfg.stone]) cfg.stone = 'newengland';
 
@@ -67,6 +67,8 @@ class Game {
 
   async build(audio) {
     const cfg = this.cfg;
+    this.lite = cfg.quality === 'lite';
+    perf.lite = this.lite;
     const setLoad = async (t) => { $('#loadText').textContent = t; await nextFrame(); };
     await setLoad('Clearing the ground…');
 
@@ -76,7 +78,7 @@ class Game {
     renderer.setPixelRatio(this.maxPR);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = this.lite ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.92;
     this.renderer = renderer;
@@ -115,7 +117,7 @@ class Game {
     }
     this.sun = new THREE.DirectionalLight(0xffffff, 3);
     this.sun.castShadow = true;
-    const sm = cfg.quality === 'high' ? 4096 : cfg.quality === 'medium' ? 2048 : 1024;
+    const sm = cfg.quality === 'high' ? 4096 : cfg.quality === 'medium' ? 2048 : this.lite ? 1024 : 1024;
     this.sun.shadow.mapSize.set(sm, sm);
     const sc = this.sun.shadow.camera;
     const ext = cfg.length / 2 + 5.5;
@@ -158,11 +160,11 @@ class Game {
     this.controls = controls;
 
     // post-processing
-    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-    const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: cfg.quality === 'low' ? 0 : 4 });
+    const size = this.lite ? new THREE.Vector2(2, 2) : renderer.getDrawingBufferSize(new THREE.Vector2());
+    const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: cfg.quality === 'low' || this.lite ? 0 : 4 });
     const composer = new EffectComposer(renderer, rt);
     composer.addPass(new RenderPass(scene, camera));
-    if (cfg.quality !== 'low') {
+    if (cfg.quality !== 'low' && !this.lite) {
       const gtao = new GTAOPass(scene, camera, size.x / 2, size.y / 2);
       const gtaoSetSize = gtao.setSize.bind(gtao);
       gtao.setSize = (w, h) => gtaoSetSize(Math.max(1, Math.floor(w / 2)), Math.max(1, Math.floor(h / 2)));
@@ -174,7 +176,7 @@ class Game {
     }
     // depth of field: soft focus beyond the stone you're looking at (Focus mode, B toggles)
     this.bokeh = new BokehPass(scene, camera, { focus: 1.2, aperture: 0.004, maxblur: 0.007 });
-    this.bokeh.enabled = cfg.mode === 'focus' && cfg.quality !== 'low';
+    this.bokeh.enabled = cfg.mode === 'focus' && cfg.quality !== 'low' && !this.lite;
     this.focusDist = 1.2;
     composer.addPass(this.bokeh);
     composer.addPass(new OutputPass());
@@ -210,8 +212,8 @@ class Game {
       builder: Math.round(L * 34) + 6,
       through: Math.max(2, Math.round(L / 0.9) + 1),
       cope: Math.ceil(L / 0.115) + 3,
-      hearting: Math.round(L * 55),
-      pinning: Math.round(L * 16) + 8,
+      hearting: Math.round(L * (this.lite ? 34 : 55)),
+      pinning: Math.round(L * (this.lite ? 10 : 16)) + 8,
     };
   }
 
@@ -508,7 +510,7 @@ class Game {
     else if (k === 'm') this.action('sound');
     else if (k === 'u' && this.snapshot) this.restoreSnapshot();
     else if (k === 'l') { this.craft.fitOn = !this.craft.fitOn; if (!this.craft.fitOn && this.interaction.held) this.craft.clearFit(this.interaction.held); this.ui.toast(this.craft.fitOn ? 'Fit light on — green bears, amber gaps' : 'Fit light off', 1600); }
-    else if (k === 'b' && this.cfg.quality !== 'low') { this.bokeh.enabled = !this.bokeh.enabled; this.ui.toast(this.bokeh.enabled ? 'Soft focus on' : 'Soft focus off', 1200); }
+    else if (k === 'b' && this.cfg.quality !== 'low' && !this.lite) { this.bokeh.enabled = !this.bokeh.enabled; this.ui.toast(this.bokeh.enabled ? 'Soft focus on' : 'Soft focus off', 1200); }
   }
 
   pourHearting() {
@@ -654,8 +656,7 @@ class Game {
     const w = window.innerWidth, h = window.innerHeight;
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
-    this.composer.setPixelRatio(this.renderer.getPixelRatio());
-    this.composer.setSize(w, h);
+    if (!this.lite) { this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h); }
   }
 
   moveCamera(dt) {
@@ -748,7 +749,7 @@ class Game {
       if (this.ui.tab === 'notes') this.ui.renderNotes(m, this.spec);
       this.updateJointMarkers();
     }
-    if (!params.get('norender')) this.composer.render(dt);
+    if (!params.get('norender')) { if (this.lite) this.renderer.render(this.scene, this.camera); else this.composer.render(dt); }
     this.adapt(dt);
   }
 
@@ -761,7 +762,7 @@ class Game {
     this._fa = 0; this._fn = 0;
     const pr = this.renderer.getPixelRatio();
     let next = pr;
-    if (avg > 1 / 32 && pr > 0.6) next = Math.max(0.6, pr - 0.2);
+    if (avg > 1 / 32 && pr > (this.lite ? 0.5 : 0.6)) next = Math.max(this.lite ? 0.5 : 0.6, pr - 0.15);
     else if (avg < 1 / 55 && pr < this.maxPR) next = Math.min(this.maxPR, pr + 0.1);
     if (Math.abs(next - pr) > 0.01) { this.renderer.setPixelRatio(next); this.resize(); }
   }
