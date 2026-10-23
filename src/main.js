@@ -10,7 +10,7 @@ import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { Craft } from './craft.js';
 
 import { Physics } from './physics.js';
-import { STONE_TYPES, generateStone, getStoneMaterial, sharedUniforms, perf } from './stones.js';
+import { STONE_TYPES, generateStone, getStoneMaterial, sharedUniforms, perf, buildStoneGeometry } from './stones.js';
 import { noonElevation } from './foliage.js';
 import { SkySystem } from './sky.js';
 import { sampleHeightfield } from './terrain.js';
@@ -562,6 +562,7 @@ class Game {
     else if (k === 'n') this.ui.togglePanel();
     else if (k === 'm') this.action('sound');
     else if (k === 'u' && this.snapshot) this.restoreSnapshot();
+    else if ((k === 'z' && (e.ctrlKey || e.metaKey)) || k === 'backspace') { e.preventDefault(); this.undo(); }
     else if (k === 'l') { this.craft.fitOn = !this.craft.fitOn; if (!this.craft.fitOn && this.interaction.held) this.craft.clearFit(this.interaction.held); this.ui.toast(this.craft.fitOn ? 'Fit light on — green bears, amber gaps' : 'Fit light off', 1600); }
     else if (k === 'b' && this.cfg.quality !== 'low' && !this.lite) { this.bokeh.enabled = !this.bokeh.enabled; this.ui.toast(this.bokeh.enabled ? 'Soft focus on' : 'Soft focus off', 1200); }
   }
@@ -661,6 +662,47 @@ class Game {
       this.weathering = null;
       this.lastAnalysis = -10;
     }
+  }
+
+  // ---------------------------------------------------------------- undo
+  // Each pick-up (and each hammer cut) leaves a note: where every stone lay, or which cut was made.
+  pushUndo(entry) {
+    if (entry.type === 'move') entry.poses = this.stones.map((s) => ({ s, t: { ...s.body.translation() }, r: { ...s.body.rotation() } }));
+    this._undo = this._undo || [];
+    this._undo.push(entry);
+    if (this._undo.length > 40) this._undo.shift();
+  }
+
+  undo() {
+    const it = this.interaction;
+    if (it.examining || it.placing) return;
+    const e = this._undo && this._undo.pop();
+    if (!e) { this.ui.toast('Nothing to undo.', 1200); return; }
+    if (e.type === 'move') {
+      if (it.held) it.release(true);
+      for (const { s, t, r } of e.poses) {
+        if (!s.body) continue;
+        s.body.setTranslation(t, true); s.body.setRotation(r, true);
+        s.body.setLinvel({ x: 0, y: 0, z: 0 }, true); s.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        s.body.wakeUp();
+      }
+    } else if (e.type === 'cut') {
+      const st = e.st;
+      st.shape.cuts.pop(); st.cuts--;
+      buildStoneGeometry(st);
+      this.physics.replaceCollider(st);
+      st.mesh.geometry = st.geometry;
+      if (e.flake) {
+        this.physics.removeStone(e.flake);
+        this.scene.remove(e.flake.mesh);
+        this.stones.splice(this.stones.indexOf(e.flake), 1);
+      }
+      this.stats.dressed = Math.max(0, (this.stats.dressed || 1) - 1);
+    }
+    this.syncAll(true);
+    this.lastAnalysis = -10;
+    this.audio.scrape(0.2);
+    this.ui.toast('Undone.', 900);
   }
 
   restoreSnapshot() {

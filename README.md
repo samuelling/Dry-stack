@@ -71,3 +71,7 @@ Time passes slowly and continuously. The trees follow a leaf-senescence model (p
 - Menu: choose where in the year to start
 - URL: `?doy=295` (day of year) or `?season=autumn|winter|spring|summer`
 - The model uses illustrative parameters, not values fitted to data.
+
+## Undo
+
+`Ctrl/Cmd+Z` (or `Backspace`) rewinds the last stone you picked up to where every stone lay before, and takes back the last hammer cut (the shard disappears and the stone is whole again). Up to 40 steps.

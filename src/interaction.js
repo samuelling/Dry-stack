@@ -171,7 +171,7 @@ export class Interaction {
     if (this.game.paused) return;
     const fine = e.shiftKey ? 1 / 6 : 1;
     const craft = this.game.craft;
-    if (k === 'z') { this.lookClosely(); return; }
+    if (k === 'z' && !(e.ctrlKey || e.metaKey)) { this.lookClosely(); return; }
     if (!this.held && craft) {
       if (k === '1') { craft.setTool('hand'); return; }
       if (k === '2' || k === 'g') { craft.setTool(craft.tool === 'hammer' ? 'hand' : 'hammer'); return; }
@@ -252,6 +252,7 @@ export class Interaction {
   }
 
   pick(stone) {
+    this.game.pushUndo({ type: 'move', held: stone });
     this.held = stone;
     this.placing = false;
     this.effort = 0;

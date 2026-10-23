@@ -244,7 +244,8 @@ export class Craft {
     st.mesh.geometry = st.geometry;
     g.audio.hammer(0.8, 1, true);
     this.burst(cut.point, cut.normal, res.flake ? 1 : 0.6);
-    if (res.flake) g.addFlake(res.flake, st, cut.normal);
+    const flake = res.flake ? g.addFlake(res.flake, st, cut.normal) : null;
+    g.pushUndo({ type: 'cut', st, flake });
     g.stats.dressed = (g.stats.dressed || 0) + 1;
     g.lastAnalysis = -10;
     this.clearHover();
