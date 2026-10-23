@@ -62,3 +62,12 @@ URL parameters skip the menu, e.g. `?stone=welsh&mode=free&len=3&time=golden&q=h
 - `src/tutorial.js` — lesson steps and their live checks
 - `src/env/` — countryside (region presets)
 - `src/audio.js` — synthesised soundscapes and stone impacts
+
+## Seasons and fog
+
+Time passes slowly and continuously. The trees follow a leaf-senescence model (photoperiod and cold-driven onset, chlorophyll fading, carotenoid and anthocyanin colour), so you can watch the canopy go from green to gold and red to bare while you work. Distance fades into thick fog.
+
+- `-` slower, `=` faster, `0` pause (or use the quiet date pill at the top)
+- Menu: choose where in the year to start
+- URL: `?doy=295` (day of year) or `?season=autumn|winter|spring|summer`
+- The model uses illustrative parameters, not values fitted to data.

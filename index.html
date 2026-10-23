@@ -32,6 +32,7 @@
       <div class="pile"><div class="stack" id="modeSeg"><button class="rock" data-v="free">Free build</button><button class="rock" data-v="focus">Focus</button><button class="rock" data-v="lesson">Lesson</button></div><h2>Mode</h2></div>
       <div class="pile"><div class="stack" id="lenSeg"><button class="rock" data-v="5">5 m</button><button class="rock" data-v="3">3 m</button><button class="rock" data-v="2">2 m</button></div><h2>Length</h2></div>
       <div class="pile"><div class="stack" id="timeSeg"><button class="rock" data-v="golden">Golden hour</button><button class="rock" data-v="afternoon">Afternoon</button><button class="rock" data-v="morning">Morning</button></div><h2>Light</h2></div>
+      <div class="pile"><div class="stack" id="seasonSeg"><button class="rock" data-v="winter">Winter</button><button class="rock" data-v="autumn">Autumn</button><button class="rock" data-v="summer">Summer</button><button class="rock" data-v="spring">Spring</button><button class="rock" data-v="today">Today</button></div><h2>Season</h2></div>
       <div class="pile"><div class="stack" id="qualSeg"><button class="rock" data-v="high">High</button><button class="rock" data-v="medium">Medium</button><button class="rock" data-v="low">Low</button><button class="rock" data-v="lite">Lite</button><button class="rock" data-v="auto">Auto</button></div><h2>Detail</h2></div>
     </div>
     <p class="stone-blurb" id="stoneBlurb"></p>
@@ -68,6 +69,11 @@
     <div id="lessonTab" class="tab-body"></div>
     <div id="notesTab" class="tab-body hidden"></div>
   </aside>
+
+  <div id="season" title="Time passes. - and = change the pace, 0 pauses.">
+    <span id="seasonDate"></span>
+    <span class="rates"><button data-rate="0" title="Pause (0)">❙❙</button><button data-rate="0.06" title="Barely moving">·</button><button data-rate="0.25" title="Slow">▸</button><button data-rate="1.5" title="Brisk">▸▸</button><button data-rate="8" title="Fast">▸▸▸</button><button data-rate="40" title="A year goes by">▸▸▸▸</button></span>
+  </div>
 
   <div id="hints"></div>
 

@@ -85,7 +85,9 @@ export class SkySystem {
     const warm = new THREE.Color(1.0, 0.62, 0.38), noon = new THREE.Color(1.0, 0.97, 0.93);
     this.cloudUniforms.uSunCol.value.copy(warm).lerp(noon, Math.min(1, e));
     this.cloudUniforms.uShadeCol.value.set(0.42, 0.45, 0.54).lerp(new THREE.Color(0.66, 0.69, 0.76), Math.min(1, e));
-    // env map
+    // env map: rebuilding the PMREM is the costly part, so slow seasonal drift only refreshes it every few degrees
+    if (this._envEl !== undefined && Math.abs(elevationDeg - this._envEl) < 3.5) return this.sun;
+    this._envEl = elevationDeg;
     const eu = this.envSky.material.uniforms, su = this.sky.material.uniforms;
     for (const k of ['turbidity', 'rayleigh', 'mieCoefficient', 'mieDirectionalG']) eu[k].value = su[k].value;
     eu.sunPosition.value.copy(this.sun);

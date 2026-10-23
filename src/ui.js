@@ -12,6 +12,7 @@ export class UI {
     document.querySelectorAll('#holdbar button').forEach((b) => b.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); game.holdAction(b.dataset.act); }));
     document.querySelectorAll('#panel .tabs button').forEach((b) => b.addEventListener('click', () => this.setTab(b.dataset.tab)));
     $('#panelToggle').addEventListener('click', () => this.togglePanel());
+    document.querySelectorAll('#season [data-rate]').forEach((b) => b.addEventListener('click', () => game.setRate(+b.dataset.rate)));
     if (game.cfg.mode !== 'lesson') document.querySelector('#panel .tabs button[data-tab="lesson"]').classList.add('hidden');
     this.setTab(this.tab);
     if (game.cfg.mode === 'focus') this.togglePanel();
@@ -19,6 +20,24 @@ export class UI {
     this.hintHold = `<kbd>Q</kbd><kbd>E</kbd>/<kbd>Shift+wheel</kbd> turn &nbsp;·&nbsp; <kbd>R</kbd><kbd>F</kbd> tip &nbsp;·&nbsp; <kbd>T</kbd> length in &nbsp;·&nbsp; <kbd>V</kbd> examine &nbsp;·&nbsp; <kbd>←→↑↓</kbd> nudge &nbsp;·&nbsp; hold <kbd>Space</kbd> press in &nbsp;·&nbsp; <kbd>L</kbd> fit light &nbsp;·&nbsp; <kbd>Right-drag</kbd> orbit &nbsp;·&nbsp; <kbd>Click</kbd> set`;
     this.hintHammer = `<kbd>Click</kbd> strike &nbsp;·&nbsp; <kbd>Shift+wheel</kbd> or <kbd>[</kbd><kbd>]</kbd> bite &nbsp;·&nbsp; <kbd>Q</kbd><kbd>E</kbd> angle of the blow &nbsp;·&nbsp; <kbd>Right-drag</kbd> orbit &nbsp;·&nbsp; <kbd>1</kbd> back to hands`;
     $('#hints').innerHTML = this.hintIdle;
+  }
+
+  // quiet season readout: the date, and which way the year is leaning
+  season(S) {
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const LEN = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let d = Math.floor(S.doy), m = 0;
+    while (m < 11 && d > LEN[m]) { d -= LEN[m]; m++; }
+    const name = S.doy < 80 || S.doy >= 355 ? 'winter' : S.doy < 172 ? 'spring' : S.doy < 266 ? 'summer' : 'autumn';
+    const yr = S.year ? ` · year ${S.year + 1}` : '';
+    $('#seasonDate').textContent = `${MON[m]} ${d} · ${name}${yr}`;
+  }
+
+  seasonRate(S) {
+    document.querySelectorAll('#season [data-rate]').forEach((b) => {
+      const r = +b.dataset.rate;
+      b.classList.toggle('on', r === 0 ? S.paused : !S.paused && r === S.rate);
+    });
   }
 
   setPlace(t) { $('#placeText').textContent = t; }

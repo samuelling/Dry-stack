@@ -5,6 +5,7 @@ import { buildTerrainGeometry } from '../terrain.js';
 import { makeGroundMaterial } from '../ground.js';
 import { createGrass } from '../grass.js';
 import { makeTreeTemplate, makeLeafMaterial, makeBarkMaterial, instanceTrees } from '../trees.js';
+import { FoliageModel } from '../foliage.js';
 import { buildOldWalls } from '../oldwalls.js';
 import { trenchOffset } from '../wall.js';
 import { NOISE_GLSL } from '../glsl.js';
@@ -62,6 +63,17 @@ export const REGIONS = {
     pines: 0, birches: 0, trees: 0.05, forest: 0.0, highCol: 0x6b5a3a, highStart: 999, rockAmt: 0.55,
     fog: 0.0016, turbidity: 3, clouds: 0.5,
   },
+};
+
+// regional warmth/rainfall for the autumn clock, and the mix of species standing in the woods
+// (maple / sugar maple / oak / sweetgum; British and Irish woods lean on oak and birch)
+const CLIMATE = {
+  newengland: { warm: 0, wet: 1, mix: [0.32, 0.38, 0.25, 0.05] },
+  pennsylvania: { warm: 2.2, wet: 1.1, mix: [0.26, 0.2, 0.32, 0.22] },
+  cotswold: { warm: 1.4, wet: 1.0, mix: [0.1, 0.15, 0.6, 0.15] },
+  welsh: { warm: 0.4, wet: 1.4, mix: [0.1, 0.2, 0.55, 0.15] },
+  yorkshire: { warm: -0.3, wet: 1.2, mix: [0.1, 0.2, 0.55, 0.15] },
+  aran: { warm: 1.0, wet: 1.3, mix: [0.2, 0.3, 0.4, 0.1] },
 };
 
 const Q = { lite: { grass: 7000, trees: 36, wall: 1100 }, high: { grass: 170000, trees: 420, wall: 7500 }, medium: { grass: 70000, trees: 230, wall: 4500 }, low: { grass: 25000, trees: 100, wall: 2500 } };
@@ -181,7 +193,11 @@ export class Countryside {
     scene.add(this.oldWalls);
 
     // trees
-    const leafMat = makeLeafMaterial(this.uTime);
+    // leaves follow the senescence model (src/foliage.js); the season clock drives uDay
+    const climate = CLIMATE[typeKey] || CLIMATE.newengland;
+    this.uDay = { value: this.ctx.doy ?? 295 };
+    this.foliage = new FoliageModel({ species: [0, 1, 2, 3, 4], tOffset: climate.warm, rain: climate.wet });
+    const leafMat = makeLeafMaterial(this.uTime, { tex: this.foliage.lutTex, rows: this.foliage.rows, uDay: this.uDay });
     const bark = { default: makeBarkMaterial(0x4a4038), birch: makeBarkMaterial(0xd8d4c8), pine: makeBarkMaterial(0x3d3026) };
     const pal = R.leaves;
     const pickLeaf = (r) => {
@@ -195,11 +211,12 @@ export class Countryside {
       const base = new THREE.Color(pickLeaf(rng));
       templates.push(makeTreeTemplate(100 + i, {
         kind: 'maple', height: [9, 15],
-        palette: (c, r) => { c.copy(base); c.offsetHSL((r() - 0.5) * 0.04, (r() - 0.5) * 0.1, (r() - 0.5) * 0.08); if (r() < 0.15) c.set(pickLeaf(r)); },
+        // neutral shading colour: the senescence model supplies the real hue and the season
+        palette: (c, r) => { c.setRGB(0.075, 0.075, 0.075); c.offsetHSL(0, 0, (r() - 0.5) * 0.02); },
       }));
     }
     const birchT = templates.length;
-    for (let i = 0; i < 3; i++) templates.push(makeTreeTemplate(200 + i, { kind: 'birch', height: [8, 12], palette: (c, r) => { c.set(R.birches > 0.1 ? 0xd9b02a : 0x7a8a30); c.offsetHSL((r() - 0.5) * 0.03, 0, (r() - 0.5) * 0.08); } }));
+    for (let i = 0; i < 3; i++) templates.push(makeTreeTemplate(200 + i, { kind: 'birch', height: [8, 12], palette: (c, r) => { c.setRGB(0.085, 0.085, 0.085); c.offsetHSL(0, 0, (r() - 0.5) * 0.02); } }));
     const pineT = templates.length;
     for (let i = 0; i < 3; i++) templates.push(makeTreeTemplate(300 + i, { kind: 'pine', height: [12, 20], palette: (c, r) => { c.set(0x26361f); c.offsetHSL(0, 0, (r() - 0.5) * 0.04); } }));
 
@@ -238,6 +255,15 @@ export class Countryside {
       const r = rand(rng, 25, 90), th = rng() * Math.PI * 2;
       placements.push({ x: Math.cos(th) * r, z: Math.sin(th) * r, s: rand(rng, 1.0, 1.4), rot: rng() * 6.28, t: Math.floor(rng() * 9) });
     }
+    // which species each tree is, and how far ahead of or behind the others it runs
+    const mix = climate.mix, mixTot = mix.reduce((a, b) => a + b, 0);
+    const prng = mulberry32(5150);
+    for (const pl of placements) {
+      if (pl.t >= pineT) pl.sp = -1;
+      else if (pl.t >= birchT) pl.sp = 4;
+      else { let v = prng() * mixTot, k = 0; for (; k < mix.length - 1; k++) { v -= mix[k]; if (v <= 0) break; } pl.sp = k; }
+      pl.ph = (prng() + prng() + prng() - 1.5) * 4;
+    }
     this.trees = instanceTrees(templates, placements, this.baseHeight, leafMat, bark);
     scene.add(this.trees);
 
@@ -246,6 +272,8 @@ export class Countryside {
   sunFor(time) {
     return { morning: [14, -70], afternoon: [30, 35], golden: [6, 70] }[time] || [30, 35];
   }
+
+  setSeason(doy) { this.uDay.value = doy; }
 
   update(dt, t) {
     this.uTime.value = t;

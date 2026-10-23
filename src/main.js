@@ -11,6 +11,7 @@ import { Craft } from './craft.js';
 
 import { Physics } from './physics.js';
 import { STONE_TYPES, generateStone, getStoneMaterial, sharedUniforms, perf } from './stones.js';
+import { noonElevation } from './foliage.js';
 import { SkySystem } from './sky.js';
 import { sampleHeightfield } from './terrain.js';
 import { WallSpec, Guides } from './wall.js';
@@ -23,6 +24,17 @@ import { UI } from './ui.js';
 import { mulberry32, rand } from './noise.js';
 
 const $ = (s) => document.querySelector(s);
+// time of year: days of game time per second. Quiet by default; the blur is for watching a year go by.
+const RATES = [0.06, 0.25, 1.5, 8, 40];
+const SEASON_DOY = { spring: 128, summer: 200, autumn: 285, winter: 352 };
+function startDoy() {
+  const p = parseFloat(params.get('doy'));
+  if (!isNaN(p)) return p;
+  if (SEASON_DOY[cfg.season]) return SEASON_DOY[cfg.season];
+  const n = new Date(), z = new Date(n.getFullYear(), 0, 0);
+  return Math.min(365, Math.floor((n - z) / 864e5));
+}
+
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 // ------------------------------------------------------------------ config
@@ -34,6 +46,7 @@ const cfg = {
   mode: params.get('mode') || 'lesson',
   length: parseFloat(params.get('len') || '3'),
   time: params.get('time') || 'afternoon',
+  season: params.get('season') || 'today',
   quality: params.get('q') || 'auto',
 };
 if (!STONE_TYPES[cfg.stone]) cfg.stone = 'newengland';
@@ -63,6 +76,38 @@ class Game {
     this.lessonIdx = 0;
     this.showJointMarkers = false;
     this.time = cfg.time;
+    // Seasons pass whether or not anyone is watching: a slow, continuous clock. rate = days per second.
+    this.season = { doy: startDoy(), year: 0, rate: RATES[1], paused: false };
+  }
+
+  setRate(r) {
+    const S = this.season;
+    if (r === 0) S.paused = !S.paused; else { S.rate = r; S.paused = false; }
+    this.ui?.seasonRate(S);
+  }
+
+  stepRate(dir) {
+    const S = this.season;
+    let i = RATES.indexOf(S.rate); if (i < 0) i = 1;
+    if (S.paused) { S.paused = false; } else i = THREE.MathUtils.clamp(i + dir, 0, RATES.length - 1);
+    S.rate = RATES[i];
+    this.ui?.seasonRate(S);
+  }
+
+  seasonLift(doy) { return (noonElevation(doy) - noonElevation(295)) * 0.65; }
+
+  tickSeason(dt) {
+    const S = this.season;
+    if (!S.paused) {
+      S.doy += S.rate * dt;
+      if (S.doy > 365) { S.doy -= 365; S.year++; this.env.foliage?.simulateYear(S.year); this.study?.yearChanged?.(); }
+    }
+    this.env.setSeason(S.doy);
+    // the sun climbs and sinks with the season
+    const lift = this.seasonLift(S.doy);
+    if (Math.abs(lift - (this._lift ?? 1e9)) > 0.4) this.applyTime(this.time, true);
+    S._ut = (S._ut || 0) + dt;
+    if (S._ut > 0.35) { S._ut = 0; this.ui.season(S); }
   }
 
   async build(audio) {
@@ -93,7 +138,7 @@ class Game {
     this.physics = new Physics();
 
     // wall spec uses the environment's ground (without trench)
-    const ctx = { scene, renderer, physics: this.physics, quality: cfg.quality, typeKey: cfg.stone };
+    const ctx = { scene, renderer, physics: this.physics, quality: cfg.quality, typeKey: cfg.stone, doy: this.season.doy };
     const EnvClass = Countryside;
     // spec needs heightFn; create env first with a placeholder spec
     const spec = new WallSpec({ length: cfg.length, height: 1.0, heightFn: () => 0 });
@@ -439,7 +484,9 @@ class Game {
   applyTime(time, initial = false) {
     this.time = time;
     const env = this.env;
-    const [el, az] = env.sunFor(time);
+    const [el0, az] = env.sunFor(time);
+    this._lift = this.seasonLift(this.season.doy);
+    const el = Math.max(3, el0 + this._lift);
     const sunDir = this.sky.setSun(el, az);
     this.sunDir = sunDir.clone();
     const warm = new THREE.Color(1.0, 0.62, 0.36), noon = new THREE.Color(1.0, 0.96, 0.9);
@@ -453,7 +500,8 @@ class Game {
     this.renderer.toneMappingExposure = 0.88 + (1 - f) * 0.12;
     const R = REGIONS[this.cfg.stone];
     const fogCol = new THREE.Color(0.86, 0.7, 0.56).lerp(new THREE.Color(0.7, 0.78, 0.88), f);
-    this.scene.fog = new THREE.FogExp2(fogCol, R.fog);
+    // thick, soft distance: morning is hazier, and the far hills dissolve into the horizon colour
+    this.scene.fog = new THREE.FogExp2(fogCol, R.fog * 2.4 * ({ morning: 1.3, afternoon: 1, golden: 1.12 }[time] || 1));
     if (env.setTime) env.setTime(time);
     if (!initial) this.ui?.toast({ morning: 'Morning', afternoon: 'Afternoon', golden: 'Golden hour' }[time], 1400);
   }
@@ -508,6 +556,9 @@ class Game {
     const k = e.key.toLowerCase();
     if (k === 'h' && !this.interaction.held) this.pourHearting();
     else if (k === 'p') this.togglePhoto();
+    else if (k === '-') this.stepRate(-1);
+    else if (k === '=' || k === '+') this.stepRate(1);
+    else if (k === '0') this.setRate(0);
     else if (k === 'n') this.ui.togglePanel();
     else if (k === 'm') this.action('sound');
     else if (k === 'u' && this.snapshot) this.restoreSnapshot();
@@ -733,6 +784,7 @@ class Game {
     const gy = this.env.height(this.camera.position.x, this.camera.position.z) + 0.25;
     if (this.camera.position.y < gy) this.camera.position.y = gy;
     this.env.update(dt, t, this.camera);
+    this.tickSeason(dt);
     if (this.sky) this.sky.update(t);
     this.placeSun();
     sharedUniforms.uTime.value = t;
@@ -861,7 +913,7 @@ function buildMenu() {
   blurb.textContent = STONE_TYPES[cfg.stone].blurb;
   const auto = $('#qualSeg [data-v="auto"]');
   if (auto) auto.textContent = 'Auto · ' + detectTier().tier;
-  seg('#modeSeg', 'mode'); seg('#lenSeg', 'length'); seg('#timeSeg', 'time'); seg('#qualSeg', 'quality');
+  seg('#modeSeg', 'mode'); seg('#lenSeg', 'length'); seg('#timeSeg', 'time'); seg('#seasonSeg', 'season'); seg('#qualSeg', 'quality');
 }
 
 // Little studio renders of each stone for the menu.

@@ -174,3 +174,14 @@ h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: 
 #effort::before { content: ''; }
 #effort.hot i { background: #d9803a; }
 #effort.hot { color: #e0a36a; }
+
+/* ---------- season readout: present, but not in the way ---------- */
+#season { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+  padding: 5px 8px 5px 16px; border-radius: 999px; background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line); opacity: .62; transition: opacity .3s; }
+#season:hover { opacity: 1; }
+#seasonDate { font-family: var(--serif); font-style: italic; font-size: 17px; letter-spacing: .01em; white-space: nowrap; }
+#season .rates { display: inline-flex; gap: 1px; }
+#season .rates button { border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 3px 7px; border-radius: 999px; font-size: 10.5px; letter-spacing: -1px; }
+#season .rates button:hover { color: var(--ink); }
+#season .rates button.on { color: #1b1814; background: var(--ink); }
