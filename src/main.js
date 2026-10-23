@@ -10,6 +10,7 @@ import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { Craft } from './craft.js';
 
 import { Physics } from './physics.js';
+import { PerfMeter } from './perf.js';
 import { STONE_TYPES, generateStone, getStoneMaterial, sharedUniforms, perf, buildStoneGeometry } from './stones.js';
 import { noonElevation } from './foliage.js';
 import { SkySystem } from './sky.js';
@@ -129,6 +130,8 @@ class Game {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.92;
     this.renderer = renderer;
+    this.perf = new PerfMeter(this);
+    if (params.get('perf')) this.perf.toggle(true);
 
     const scene = new THREE.Scene();
     this.scene = scene;
@@ -555,6 +558,7 @@ class Game {
     if (e.repeat) return;
     const k = e.key.toLowerCase();
     if (k === 'h' && !this.interaction.held) this.pourHearting();
+    else if (k === '`') this.perf.toggle();
     else if (k === 'p') this.togglePhoto();
     else if (k === '-') this.stepRate(-1);
     else if (k === '=' || k === '+') this.stepRate(1);
@@ -797,6 +801,8 @@ class Game {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.elapsed += dt;
     const t = this.elapsed;
+    const pf = this.perf;
+    pf?.mark('scene');
     this.interaction.update(dt);
     this.craft.update(dt);
     if (this.pendingBearing) {
@@ -817,8 +823,10 @@ class Game {
       this.bokeh.uniforms.aperture.value = 0.0035 / Math.max(0.4, this.focusDist);
     }
     this.updateWeather(dt);
+    pf?.end('scene'); pf?.mark('physics');
     this.physics.step(dt, (h) => this.interaction.steer(h), () => this.detectImpacts());
     this.syncAll();
+    pf?.end('physics'); pf?.mark('scene');
     this.moveCamera(dt);
     this.controls.update();
     this.camera.updateMatrixWorld();
@@ -832,7 +840,9 @@ class Game {
     sharedUniforms.uTime.value = t;
     this.grade.uniforms.uTime.value = t % 10;
 
+    pf?.end('scene');
     if (t - this.lastAnalysis > 1.0) {
+      pf?.mark('analysis');
       this.lastAnalysis = t;
       this.metrics = analyseWall(this);
       const m = this.metrics;
@@ -844,8 +854,11 @@ class Game {
       }
       if (this.ui.tab === 'notes') this.ui.renderNotes(m, this.spec);
       this.updateJointMarkers();
+      pf?.end('analysis');
     }
+    pf?.mark('render'); pf?.gpuBegin();
     if (!params.get('norender')) { if (this.direct) this.renderer.render(this.scene, this.camera); else this.composer.render(dt); }
+    pf?.gpuEnd(); pf?.end('render'); pf?.frameEnd(dt);
     this.adapt(dt);
   }
 

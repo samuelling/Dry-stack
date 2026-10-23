@@ -75,3 +75,7 @@ Time passes slowly and continuously. The trees follow a leaf-senescence model (p
 ## Undo
 
 `Ctrl/Cmd+Z` (or `Backspace`) rewinds the last stone you picked up to where every stone lay before, and takes back the last hammer cut (the shard disappears and the stone is whole again). Up to 40 steps.
+
+## Performance readout
+
+Press `` ` `` (backtick) or add `?perf=1` to see frame time split into physics, scene upkeep, analysis and render submit (CPU), GPU render time where the browser allows (Chrome/Edge on desktop; Safari doesn't expose it), draw calls, triangles and resolution.
