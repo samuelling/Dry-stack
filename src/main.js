@@ -947,6 +947,35 @@ function seg(id, key) {
 
 const ROCK_TINT = { newengland: '#8a8782', pennsylvania: '#9b6e4f', cotswold: '#c4a86f', welsh: '#586270', yorkshire: '#6d6558', aran: '#b7b6ac' };
 
+// Give every menu stone its own lumpy outline, lean and offset, so a stack looks like it
+// was piled by hand and might topple. Smooth superellipse + a few low harmonics, as a clip-path.
+function shapeRocks() {
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  document.querySelectorAll('.stack .rock, .begin').forEach((el) => {
+    const h = [2, 3, 5].map((k) => ({ k, a: (0.05 + rnd() * 0.07) / (k === 5 ? 1.8 : 1), p: rnd() * 6.283 }));
+    const ex = 2.4 + rnd() * 1.6;           // 2 = ellipse, higher = blockier
+    const flat = 0.78 + rnd() * 0.18;       // flatter top and bottom, like a laid stone
+    const tilt = (rnd() - 0.5) * 0.35;
+    const pts = [];
+    for (let i = 0; i < 36; i++) {
+      const th = (i / 36) * Math.PI * 2;
+      let r = 1;
+      for (const { k, a, p } of h) r += a * Math.cos(k * th + p);
+      const c = Math.cos(th + tilt), sn = Math.sin(th + tilt);
+      const d = Math.pow(Math.pow(Math.abs(c), ex) + Math.pow(Math.abs(sn) / flat, ex), 1 / ex);
+      const x = 50 + (c / d) * r * 49, y = 50 + (sn / d) * r * 49 * flat;
+      pts.push(`${Math.min(100, Math.max(0, x)).toFixed(1)}% ${Math.min(100, Math.max(0, y)).toFixed(1)}%`);
+    }
+    el.style.clipPath = `polygon(${pts.join(',')})`;
+    if (!el.classList.contains('begin')) {
+      el.style.setProperty('--r', ((rnd() - 0.5) * 7).toFixed(1) + 'deg');
+      el.style.setProperty('--dx', ((rnd() - 0.5) * 22).toFixed(0) + 'px');
+      el.style.setProperty('--wob', (rnd() < 0.5 ? -1 : 1) * (1.5 + rnd() * 2).toFixed(1) + 'deg');
+    }
+  });
+}
+
 function buildMenu() {
   const wrap = $('#stoneCards');
   const blurb = $('#stoneBlurb');
@@ -969,6 +998,7 @@ function buildMenu() {
   const auto = $('#qualSeg [data-v="auto"]');
   if (auto) auto.textContent = 'Auto · ' + detectTier().tier;
   seg('#modeSeg', 'mode'); seg('#lenSeg', 'length'); seg('#timeSeg', 'time'); seg('#seasonSeg', 'season'); seg('#qualSeg', 'quality');
+  shapeRocks();
 }
 
 // Little studio renders of each stone for the menu.
