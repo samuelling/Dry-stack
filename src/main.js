@@ -953,10 +953,10 @@ function shapeRocks() {
   let seed = 7;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   document.querySelectorAll('.stack .rock, .begin').forEach((el) => {
-    const h = [2, 3, 5].map((k) => ({ k, a: (0.05 + rnd() * 0.07) / (k === 5 ? 1.8 : 1), p: rnd() * 6.283 }));
-    const ex = 2.4 + rnd() * 1.6;           // 2 = ellipse, higher = blockier
-    const flat = 0.78 + rnd() * 0.18;       // flatter top and bottom, like a laid stone
-    const tilt = (rnd() - 0.5) * 0.35;
+    const h = [2, 3, 5].map((k) => ({ k, a: (0.02 + rnd() * 0.04) / (k === 5 ? 1.8 : 1), p: rnd() * 6.283 }));
+    const ex = 3.4 + rnd() * 1.4;           // 2 = ellipse, higher = blockier
+    const flat = 0.96 + rnd() * 0.04;       // flatter top and bottom, like a laid stone
+    const tilt = (rnd() - 0.5) * 0.08;
     const pts = [];
     for (let i = 0; i < 36; i++) {
       const th = (i / 36) * Math.PI * 2;
@@ -969,8 +969,8 @@ function shapeRocks() {
     }
     el.style.clipPath = `polygon(${pts.join(',')})`;
     if (!el.classList.contains('begin')) {
-      el.style.setProperty('--r', ((rnd() - 0.5) * 7).toFixed(1) + 'deg');
-      el.style.setProperty('--dx', ((rnd() - 0.5) * 22).toFixed(0) + 'px');
+      el.style.setProperty('--r', ((rnd() - 0.5) * 2.4).toFixed(1) + 'deg');
+      el.style.setProperty('--dx', ((rnd() - 0.5) * 12).toFixed(0) + 'px');
       el.style.setProperty('--wob', (rnd() < 0.5 ? -1 : 1) * (1.5 + rnd() * 2).toFixed(1) + 'deg');
     }
   });
