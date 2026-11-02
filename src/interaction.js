@@ -195,7 +195,11 @@ export class Interaction {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     const k = e.key.toLowerCase();
     if (down) this.keys.add(k); else this.keys.delete(k);
-    if (!down) { if (k === ' ') this.clearance = 0.035; return; }
+    if (!down) {
+      if (k === ' ') this.clearance = 0.035;
+      if (k === 'g' && this.ghostHeld) this.endPhase();
+      return;
+    }
     if (this.game.paused) return;
     const fine = e.shiftKey ? 1 / 6 : 1;
     const craft = this.game.craft;
@@ -234,11 +238,44 @@ export class Interaction {
       else if (k === 'e') this.rotateWorld(UP, THREE.MathUtils.degToRad(-15 * fine));
       else if (k === 'r') this.rotateWorld(camRight, Math.PI / 2 * fine);
       else if (k === 'f') this.rotateWorld(camFwd, Math.PI / 2 * fine);
+      else if (k === 'g') this.startPhase();
       else if (k === 't') this.turnIntoWall();
       else if (k === 'c') this.standOnEdge();
       else if (k === ' ') { this.clearance = -0.004; e.preventDefault(); }
       else if (k === 'escape') { if (this.examining) this.endExamine(); else this.release(); }
     }
+  }
+
+  // Hold G: the stone passes through its neighbours so you can bring it to a gap, turn it and
+  // judge the fit without shoving the wall. It only becomes solid again once it is clear.
+  startPhase() {
+    const s = this.held;
+    if (!s || this.ghosted || this.examining || this.placing) return;
+    this.game.physics.setGhost(s, true);
+    this.ghosted = true; this.ghostHeld = true;
+    // a faint amber shell over the stone, seen through whatever it is passing through
+    if (!this._ghostMat) this._ghostMat = new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.28, depthTest: false, depthWrite: false });
+    const shell = new THREE.Mesh(s.mesh.geometry, this._ghostMat);
+    shell.renderOrder = 6; shell.raycast = () => {}; shell.userData.phaseShell = true;
+    s.mesh.add(shell);
+    if (!this._phaseTold) { this._phaseTold = true; this.game.ui.toast('Passing through while you hold G. Let go over clear ground, or lift it out of the wall, to make it solid.', 3600); }
+  }
+
+  endPhase() {
+    this.ghostHeld = false;
+    // update() brings collisions back as soon as nothing overlaps
+  }
+
+  restoreLook(s) {
+    if (!s || !s.mesh) return;
+    for (const c of [...s.mesh.children]) if (c.userData.phaseShell) s.mesh.remove(c);
+  }
+
+  isClear(s) {
+    const t = s.body.translation(), r = s.body.rotation();
+    let clear = true;
+    this.game.physics.world.intersectionsWithShape(t, r, this.heldShape, () => { clear = false; return false; }, undefined, undefined, s.collider, s.body);
+    return clear;
   }
 
   rotateWorld(axis, ang) {
@@ -310,7 +347,11 @@ export class Interaction {
   release(force = false) {
     const s = this.held;
     if (!s || this.placing) return;
-    if (force || this.examining || this.ghosted) { this.finishRelease(); return; }
+    if (force || this.examining) { this.finishRelease(); return; }
+    if (this.ghosted) {
+      if (!this.isClear(s)) { this.game.ui.toast('Still inside the wall — lift it clear before you set it down.', 1800); return; }
+      this.game.physics.setGhost(s, false); this.ghosted = false; this.ghostHeld = false; this.restoreLook(s);
+    }
     const t = s.body.translation();
     this.placing = true;
     this.placeT = 0;
@@ -347,6 +388,7 @@ export class Interaction {
     b.setLinvel({ x: 0, y: 0, z: 0 }, true);
     b.setAngvel({ x: 0, y: 0, z: 0 }, true);
     if (this.ghosted) { this.game.physics.setGhost(s, false); this.ghosted = false; }
+    this.ghostHeld = false; this.restoreLook(s);
     this.examining = false;
     this.held = null;
     this.lastPlaced = s;
@@ -397,12 +439,7 @@ export class Interaction {
       this.smoothTarget.lerp(this.target, k);
       return;
     }
-    if (this.ghosted) {
-      const t = s.body.translation(), r = s.body.rotation();
-      let clear = true;
-      this.game.physics.world.intersectionsWithShape(t, r, this.heldShape, () => { clear = false; return false; }, undefined, undefined, s.collider, s.body);
-      if (clear) { this.game.physics.setGhost(s, false); this.ghosted = false; }
-    }
+    if (this.ghosted && !this.ghostHeld && this.isClear(s)) { this.game.physics.setGhost(s, false); this.ghosted = false; this.restoreLook(s); }
     const hit = this.castPointer(s.body);
     if (hit) {
       hit.point.add(this.nudge);

@@ -17,7 +17,7 @@ export class UI {
     this.setTab(this.tab);
     if (game.cfg.mode === 'focus') this.togglePanel();
     this.hintIdle = `<kbd>Click</kbd> lift a stone &nbsp;·&nbsp; <kbd>Drag</kbd>/<kbd>Right-drag</kbd>/<kbd>←→↑↓</kbd> look around &nbsp;·&nbsp; <kbd>Wheel</kbd> zoom &nbsp;·&nbsp; <kbd>Double-click</kbd> look closely &nbsp;·&nbsp; <kbd>2</kbd> hammer &nbsp;·&nbsp; <kbd>X</kbd> press`;
-    this.hintHold = `<kbd>Right-drag</kbd> or hold <kbd>Alt</kbd> and move: turn it in your hands (<kbd>Ctrl</kbd> flat spin, <kbd>Shift</kbd> fine) &nbsp;·&nbsp; <kbd>Q</kbd><kbd>E</kbd> step turn &nbsp;·&nbsp; <kbd>R</kbd><kbd>F</kbd> tip &nbsp;·&nbsp; <kbd>T</kbd> length in &nbsp;·&nbsp; <kbd>V</kbd> examine &nbsp;·&nbsp; <kbd>←→↑↓</kbd> nudge &nbsp;·&nbsp; hold <kbd>Space</kbd> press in &nbsp;·&nbsp; <kbd>L</kbd> fit light &nbsp;·&nbsp; <kbd>Click</kbd> set`;
+    this.hintHold = `<kbd>Right-drag</kbd> or hold <kbd>Alt</kbd> and move: turn it in your hands (<kbd>Ctrl</kbd> flat spin, <kbd>Shift</kbd> fine) &nbsp;·&nbsp; <kbd>Q</kbd><kbd>E</kbd> step turn &nbsp;·&nbsp; <kbd>R</kbd><kbd>F</kbd> tip &nbsp;·&nbsp; <kbd>T</kbd> length in &nbsp;·&nbsp; hold <kbd>G</kbd> pass through the wall &nbsp;·&nbsp; <kbd>V</kbd> examine &nbsp;·&nbsp; <kbd>←→↑↓</kbd> nudge &nbsp;·&nbsp; hold <kbd>Space</kbd> press in &nbsp;·&nbsp; <kbd>L</kbd> fit light &nbsp;·&nbsp; <kbd>Click</kbd> set`;
     this.hintHammer = `<kbd>Click</kbd> strike &nbsp;·&nbsp; <kbd>Shift+wheel</kbd> or <kbd>[</kbd><kbd>]</kbd> bite &nbsp;·&nbsp; <kbd>Q</kbd><kbd>E</kbd> angle of the blow &nbsp;·&nbsp; <kbd>Right-drag</kbd> orbit &nbsp;·&nbsp; <kbd>1</kbd> back to hands`;
     $('#hints').innerHTML = this.hintIdle;
   }
