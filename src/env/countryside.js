@@ -198,7 +198,7 @@ export class Countryside {
     this.uDay = { value: this.ctx.doy ?? 295 };
     this.foliage = new FoliageModel({ species: [0, 1, 2, 3, 4], tOffset: climate.warm, rain: climate.wet });
     const leafMat = makeLeafMaterial(this.uTime, { tex: this.foliage.lutTex, rows: this.foliage.rows, uDay: this.uDay });
-    const bark = { default: makeBarkMaterial(0x4a4038), birch: makeBarkMaterial(0xd8d4c8), pine: makeBarkMaterial(0x3d3026) };
+    const bark = { default: makeBarkMaterial(0x4a4038), birch: makeBarkMaterial(0xffffff, { birch: true }), pine: makeBarkMaterial(0x3d3026) };
     const pal = R.leaves;
     const pickLeaf = (r) => {
       const tot = pal.reduce((s, p) => s + p[1], 0);
@@ -207,18 +207,21 @@ export class Countryside {
       return pal[0][0];
     };
     const templates = [];
-    for (let i = 0; i < 9; i++) {
-      const base = new THREE.Color(pickLeaf(rng));
-      templates.push(makeTreeTemplate(100 + i, {
-        kind: 'maple', height: [9, 15],
+    const detail = { lite: 0.5, low: 0.7, medium: 0.9, high: 1 }[quality] ?? 0.9;
+    // near trees get the full branching and leaf-card treatment; the same 15 shapes are rebuilt cheaply
+    // for the far woods (lod 1), and placements pick between them by distance
+    const NEAR = 15, NEAR_DIST = 62;
+    for (const lod of [0, 1]) {
+      const dt = lod ? 0.6 : detail;
+      for (let i = 0; i < 9; i++) templates.push(makeTreeTemplate(100 + i, {
+        kind: 'maple', height: [9, 15], detail: dt, lod,
         // neutral shading colour: the senescence model supplies the real hue and the season
         palette: (c, r) => { c.setRGB(0.075, 0.075, 0.075); c.offsetHSL(0, 0, (r() - 0.5) * 0.02); },
       }));
+      for (let i = 0; i < 3; i++) templates.push(makeTreeTemplate(200 + i, { kind: 'birch', height: [8, 12], detail: dt, lod, palette: (c, r) => { c.setRGB(0.085, 0.085, 0.085); c.offsetHSL(0, 0, (r() - 0.5) * 0.02); } }));
+      for (let i = 0; i < 3; i++) templates.push(makeTreeTemplate(300 + i, { kind: 'pine', height: [12, 20], detail: dt, lod, palette: (c, r) => { c.set(0x26361f); c.offsetHSL(0, 0, (r() - 0.5) * 0.04); } }));
     }
-    const birchT = templates.length;
-    for (let i = 0; i < 3; i++) templates.push(makeTreeTemplate(200 + i, { kind: 'birch', height: [8, 12], palette: (c, r) => { c.setRGB(0.085, 0.085, 0.085); c.offsetHSL(0, 0, (r() - 0.5) * 0.02); } }));
-    const pineT = templates.length;
-    for (let i = 0; i < 3; i++) templates.push(makeTreeTemplate(300 + i, { kind: 'pine', height: [12, 20], palette: (c, r) => { c.set(0x26361f); c.offsetHSL(0, 0, (r() - 0.5) * 0.04); } }));
+    const birchT = 9, pineT = 12;
 
     const placements = [];
     const pickT = (r) => {
@@ -264,6 +267,7 @@ export class Countryside {
       else { let v = prng() * mixTot, k = 0; for (; k < mix.length - 1; k++) { v -= mix[k]; if (v <= 0) break; } pl.sp = k; }
       pl.ph = (prng() + prng() + prng() - 1.5) * 4;
     }
+    for (const pl of placements) if (Math.hypot(pl.x, pl.z) > NEAR_DIST) pl.t += NEAR;
     this.trees = instanceTrees(templates, placements, this.baseHeight, leafMat, bark);
     scene.add(this.trees);
 

@@ -62,7 +62,7 @@ export class UI {
     tip.classList.remove('hidden');
     const kg = s.mass < 1 ? `${Math.round(s.mass * 1000)} g` : `${Math.round(s.mass)} kg`;
     const dims = `${Math.round(s.size.x * 100)} × ${Math.round(s.size.z * 100)} × ${Math.round(s.size.y * 100)} cm`;
-    tip.innerHTML = `<b>${CLASS_NAMES[s.cls]}</b> &nbsp;${kg}<br><span style="color:var(--ink-3)">${dims}</span>`;
+    tip.innerHTML = `<b>${s.label || CLASS_NAMES[s.cls]}</b> &nbsp;${kg}<br><span style="color:var(--ink-3)">${dims}</span>`;
     tip.style.left = px.x + 'px'; tip.style.top = px.y + 'px';
   }
 
@@ -71,7 +71,7 @@ export class UI {
     if (!s) { hb.classList.add('hidden'); $('#hints').innerHTML = this.hintIdle; return; }
     hb.classList.remove('hidden');
     const kg = s.mass < 1 ? `${Math.round(s.mass * 1000)} g` : `${Math.round(s.mass)} kg`;
-    $('#holdName').textContent = `${CLASS_NAMES[s.cls]} · ${kg}`;
+    $('#holdName').textContent = `${s.label || CLASS_NAMES[s.cls]} · ${kg}`;
     $('#hints').innerHTML = this.hintHold;
   }
 

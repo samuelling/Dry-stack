@@ -51,6 +51,7 @@ const cfg = {
   quality: params.get('q') || 'auto',
 };
 if (!STONE_TYPES[cfg.stone]) cfg.stone = 'newengland';
+const envKey = (k) => STONE_TYPES[k].envKey || k;   // salvage materials sit in a New England field
 
 // ------------------------------------------------------------------ grading pass
 const GradeShader = {
@@ -141,7 +142,7 @@ class Game {
     this.physics = new Physics();
 
     // wall spec uses the environment's ground (without trench)
-    const ctx = { scene, renderer, physics: this.physics, quality: cfg.quality, typeKey: cfg.stone, doy: this.season.doy };
+    const ctx = { scene, renderer, physics: this.physics, quality: cfg.quality, typeKey: envKey(cfg.stone), doy: this.season.doy };
     const EnvClass = Countryside;
     // spec needs heightFn; create env first with a placeholder spec
     const spec = new WallSpec({ length: cfg.length, height: 1.0, heightFn: () => 0 });
@@ -162,7 +163,7 @@ class Game {
 
     // sky + lights
     {
-      const R = REGIONS[cfg.stone];
+      const R = REGIONS[envKey(cfg.stone)];
       this.sky = new SkySystem(renderer, scene, { turbidity: R.turbidity, cloudCover: R.clouds });
     }
     this.sun = new THREE.DirectionalLight(0xffffff, 3);
@@ -257,13 +258,15 @@ class Game {
   // ---------------------------------------------------------------- stones
   counts() {
     const L = this.cfg.length;
+    const k = STONE_TYPES[this.cfg.stone].countScale || 1;
+    const salvage = !!STONE_TYPES[this.cfg.stone].unit;
     return {
-      foundation: Math.round(L * 6.5) + 2,
-      builder: Math.round(L * 34) + 6,
-      through: Math.max(2, Math.round(L / 0.9) + 1),
-      cope: Math.ceil(L / 0.115) + 3,
-      hearting: Math.round(L * (this.lite ? 34 : 55)),
-      pinning: Math.round(L * (this.lite ? 10 : 16)) + 8,
+      foundation: Math.round((Math.round(L * 6.5) + 2) * k),
+      builder: Math.round((Math.round(L * 34) + 6) * k),
+      through: salvage ? 0 : Math.max(2, Math.round(L / 0.9) + 1),
+      cope: salvage ? 0 : Math.ceil(L / 0.115) + 3,
+      hearting: Math.round(L * (this.lite ? 34 : 55) * (salvage ? 0.4 : 1)),
+      pinning: Math.round((Math.round(L * (this.lite ? 10 : 16)) + 8) * (salvage ? 0.5 : 1)),
     };
   }
 
@@ -294,24 +297,25 @@ class Game {
     const n = this.counts();
     let seed = 1000;
     const half = L / 2;
+    const lay = STONE_TYPES[this.cfg.stone].layout || 1;
     // footings close to the trench, alternating sides
     for (let i = 0; i < n.foundation; i++) {
       const side = i % 2 ? 1 : -1;
       const k = Math.floor(i / 2), per = Math.ceil(n.foundation / 2);
       const x = -half - 0.2 + (k + 0.5) * ((L + 0.4) / per) + rand(rng, -0.06, 0.06);
-      const z = side * (0.98 + rand(rng, -0.05, 0.12));
+      const z = side * (0.98 + (lay - 1) * 0.1 + rand(rng, -0.05, 0.12));
       this.addStone('foundation', seed++, x, z, rand(rng, -0.5, 0.5) + Math.PI / 2 * (rng() < 0.5 ? 0 : 1));
     }
     await nextFrame();
     // builders in rows behind
-    const cols = Math.max(6, Math.round((L + 1.6) / 0.42));
+    const cols = Math.max(6, Math.round((L + 1.6) / (0.42 * lay)));
     let placed = 0;
     for (let row = 0; placed < n.builder; row++) {
       for (let c = 0; c < cols && placed < n.builder; c++) {
         for (const side of [1, -1]) {
           if (placed >= n.builder) break;
           const x = -half - 0.8 + (c + 0.5) * ((L + 1.6) / cols) + rand(rng, -0.05, 0.05);
-          const z = side * (1.5 + row * 0.38 + rand(rng, -0.05, 0.05));
+          const z = side * (1.5 + row * 0.38 * lay + rand(rng, -0.05, 0.05));
           this.addStone('builder', seed++, x, z, rng() * Math.PI * 2);
           placed++;
         }
@@ -332,7 +336,7 @@ class Game {
     await nextFrame();
     // hearting heaps behind the builders on both sides
     const builderRows = Math.ceil(n.builder / (cols * 2));
-    const heapZ = 1.5 + builderRows * 0.38 + 0.45;
+    const heapZ = 1.5 + builderRows * 0.38 * lay + 0.45;
     const heaps = [[-half * 0.4, heapZ], [half * 0.4, -heapZ], [half * 0.6, heapZ], [-half * 0.6, -heapZ]];
     for (let i = 0; i < n.hearting; i++) {
       const [hx, hz] = heaps[i % heaps.length];
@@ -501,7 +505,7 @@ class Game {
     this.hemi.intensity = 0.28 + 0.32 * f;
     this.scene.environmentIntensity = 0.32 + 0.3 * f;
     this.renderer.toneMappingExposure = 0.88 + (1 - f) * 0.12;
-    const R = REGIONS[this.cfg.stone];
+    const R = REGIONS[envKey(this.cfg.stone)];
     const fogCol = new THREE.Color(0.86, 0.7, 0.56).lerp(new THREE.Color(0.7, 0.78, 0.88), f);
     // thick, soft distance: morning is hazier, and the far hills dissolve into the horizon colour
     this.scene.fog = new THREE.FogExp2(fogCol, R.fog * 2.4 * ({ morning: 1.3, afternoon: 1, golden: 1.12 }[time] || 1));
@@ -945,14 +949,16 @@ function seg(id, key) {
   });
 }
 
-const ROCK_TINT = { newengland: '#8a8782', pennsylvania: '#9b6e4f', cotswold: '#c4a86f', welsh: '#586270', yorkshire: '#6d6558', aran: '#b7b6ac' };
+const ROCK_TINT = { newengland: '#8a8782', pennsylvania: '#9b6e4f', cotswold: '#c4a86f', welsh: '#586270', yorkshire: '#6d6558', aran: '#b7b6ac', brick: '#a04a35', cinder: '#8d8d8a', sandbag: '#a8935f', crt: '#c9c1ab' };
 
 function buildMenu() {
   const wrap = $('#stoneCards');
   const blurb = $('#stoneBlurb');
   // stacks build from the bottom up: first stone at the base
   const types = Object.values(STONE_TYPES);
+  let sawSalvage = false;
   for (const t of types) {
+    if (t.group === 'salvage' && !sawSalvage) { sawSalvage = true; const h = document.createElement('div'); h.className = 'subhead'; h.textContent = 'Salvage yard'; wrap.appendChild(h); }
     const b = document.createElement('button');
     b.className = 'rock' + (t.key === cfg.stone ? ' on' : '');
     b.dataset.v = t.key;
@@ -1025,7 +1031,7 @@ async function begin(audio) {
   }
   $('#loading').classList.add('hidden');
   $('#hud').classList.remove('hidden');
-  const region = cfg.stone;
+  const region = envKey(cfg.stone);
   audio.start(game.env.audio, region).catch((e) => console.warn('audio', e));
   window.addEventListener('pointerdown', () => audio.ctx && audio.ctx.resume(), { once: true });
   game.run();

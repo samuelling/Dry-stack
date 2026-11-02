@@ -101,6 +101,69 @@ export const STONE_TYPES = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Salvage-yard materials. Whole units are built from real dimensions with their real
+// mass (not a stone's density), real-ish friction and restitution. Rubble-sized
+// fill (hearting/pinning) uses the same radial shape pipeline as stone.
+const SALVAGE_SHAPE = { h: 0.8, round: 0.04, p: 3.0, cuts: [4, 7], cutDepth: [0.62, 0.9], bed: 0, noise: 0.035, freq: 2.0, detail: 0.008, asym: 0.2, taper: 0.1 };
+STONE_TYPES.brick = {
+  key: 'brick', group: 'salvage', envKey: 'newengland',
+  name: 'Red Clay Brick', region: 'Reclaimed · builders\' merchant',
+  blurb: 'Fired clay, 215 × 102 × 65 mm and about 2.7 kg each. Dead uniform and grippy, but with nothing irregular to lock into. Dry, it stays up only if you break the joints, keep it square and make it thick. Brick bats stand in for hearting.',
+  unit: { kind: 'brick' }, countScale: 1.8, layout: 0.7,
+  shape: SALVAGE_SHAPE,
+  variants: [
+    { w: 4, a: 0x8c3a2a, b: 0xa9553c, speckle: 0.25, band: 0.0, rust: 0.1 },
+    { w: 2, a: 0x7a3326, b: 0x9a4a35, speckle: 0.3, band: 0.0, rust: 0.15 },
+    { w: 1, a: 0x3d4a5c, b: 0x56667c, speckle: 0.15, band: 0.0, rust: 0.05 },   // engineering blue
+    { w: 1, a: 0xb89a5c, b: 0xd1b779, speckle: 0.2, band: 0.0, rust: 0.05 },   // London stock
+  ],
+  lichen: 0.05, roughness: 0.9, friction: 0.65, restitution: 0.05, density: 1900, bedFreq: 0, bedAmt: 0, pits: 0.12, grain: 0.8, sharpMix: 0.0,
+  lichenTint: [0x8f9a74, 0xb0b59a, 0xc09040], copes: false, sound: 1.25,
+};
+STONE_TYPES.cinder = {
+  key: 'cinder', group: 'salvage', envKey: 'newengland',
+  name: 'Cinder Block', region: 'Hollow concrete masonry',
+  blurb: 'Hollow concrete block, 390 × 190 × 190 mm, about 16 kg. Big and quick to lay and grippy, but a dry stack has only its own weight to hold it. The cores are for show here: stones rest on the rim, not inside.',
+  unit: { kind: 'cinder' }, countScale: 0.9, layout: 1.0,
+  shape: SALVAGE_SHAPE,
+  variants: [
+    { w: 3, a: 0x58585a, b: 0x727274, speckle: 0.2, band: 0.0, rust: 0.05 },
+    { w: 2, a: 0x66665f, b: 0x7f7f76, speckle: 0.2, band: 0.0, rust: 0.04 },
+    { w: 1, a: 0x4a4c4f, b: 0x626466, speckle: 0.2, band: 0.0, rust: 0.08 },
+  ],
+  lichen: 0.15, roughness: 0.95, friction: 0.7, restitution: 0.03, density: 1400, bedFreq: 0, bedAmt: 0, pits: 0.55, grain: 1.0, sharpMix: 0.0,
+  lichenTint: [0x9fa38a, 0xbdbfae, 0xb59038], copes: false, sound: 0.75,
+};
+STONE_TYPES.sandbag = {
+  key: 'sandbag', group: 'salvage', envKey: 'newengland',
+  name: 'Sandbags', region: 'Flood duty · damp sand in woven sacks',
+  blurb: 'About 20 kg of damp sand in a woven sack. Real bags slump into each other and lock. Here they are rigid pillows with plenty of grip, no bounce and heavy damping. They do not slump into each other the way real bags do, so keep the courses staggered and the stack low. Heavy, and no friend to your back.',
+  unit: { kind: 'sandbag' }, countScale: 0.8, layout: 1.35,
+  shape: SALVAGE_SHAPE,
+  variants: [
+    { w: 3, a: 0xa48d5e, b: 0xbba578, speckle: 0.25, band: 0.5, rust: 0.1 },    // burlap
+    { w: 2, a: 0x6b6e48, b: 0x858a5c, speckle: 0.2, band: 0.5, rust: 0.05 },   // olive canvas
+    { w: 1, a: 0xb7b3a4, b: 0xd0ccbd, speckle: 0.2, band: 0.5, rust: 0.12 },   // dirty poly
+  ],
+  lichen: 0.0, roughness: 1.0, friction: 0.9, restitution: 0.0, density: 1600, damp: [1.3, 2.6], bedFreq: 85, bedAmt: 0.5, pits: 0.0, grain: 0.2, sharpMix: 0.0,
+  lichenTint: [0x8f9a74, 0xb0b59a, 0xc09040], copes: false, sound: 0.3,
+};
+STONE_TYPES.crt = {
+  key: 'crt', group: 'salvage', envKey: 'newengland',
+  name: 'CRT Monitors', region: 'E-waste · 15 to 19 inch',
+  blurb: 'Cathode-ray tube monitors, around 16 kg each. Glass-heavy at the front and smooth plastic on plastic, which is not much grip. Rigid hulls, so they will tip and slide like the real thing. Nobody has ever built a good wall from these.',
+  unit: { kind: 'crt' }, countScale: 0.6, layout: 1.3,
+  shape: SALVAGE_SHAPE,
+  variants: [
+    { w: 3, a: 0x8f8974, b: 0x9d9782, speckle: 0.0, band: 0.0, rust: 0.0 },   // beige
+    { w: 2, a: 0x5f6163, b: 0x6e7072, speckle: 0.0, band: 0.0, rust: 0.0 },   // grey
+    { w: 1, a: 0x1c1d1f, b: 0x2a2b2d, speckle: 0.0, band: 0.0, rust: 0.0 },   // black
+  ],
+  lichen: 0.0, roughness: 0.42, friction: 0.4, restitution: 0.12, density: 1100, bedFreq: 0, bedAmt: 0, pits: 0.0, grain: 0.05, sharpMix: 0.0,
+  lichenTint: [0x8f9a74, 0xb0b59a, 0xc09040], copes: false, sound: 0.6,
+};
+
 // Size classes (meters): [length, width(into-wall depth), height] ranges before type scaling.
 export const SIZE_CLASSES = {
   foundation: { L: [0.5, 0.72], W: [0.32, 0.46], H: [0.2, 0.3], detail: 22 },
@@ -239,6 +302,7 @@ const linear = (hex) => new THREE.Color(hex); // three converts sRGB hex -> line
 export function generateStone(typeKey, cls, seed) {
   const type = STONE_TYPES[typeKey];
   const rng = mulberry32(seed);
+  if (type.unit && cls !== 'hearting' && cls !== 'pinning') return generateUnit(type, cls, rng);
   const shape = makeShape(type, cls, rng);
   const variant = pickVariant(type, rng);
   const ca = linear(variant.a), cb = linear(variant.b);
@@ -250,11 +314,226 @@ export function generateStone(typeKey, cls, seed) {
   const lich = type.lichen * rand(rng, 0.4, 1.3) * (small ? 0.4 : 1);
   const look = { ca, cb, sd: rng(), speckle: variant.speckle, rust: variant.rust, lich };
   const st = {
+    density: type.density, restitution: type.restitution,
     shape, look, cls, type: typeKey, band: variant.band, cuts: 0,
     detail: perf.lite ? Math.max(4, Math.round(SIZE_CLASSES[cls].detail * 0.5)) : SIZE_CLASSES[cls].detail, hullDetail: small ? 1 : 3,
   };
   buildStoneGeometry(st);
   return st;
+}
+
+// ---------------------------------------------------------------------------
+// Manufactured units
+const clamp = THREE.MathUtils.clamp;
+
+// A box with filleted edges, built face by face so every flat face is truly flat and the fillets get
+// their own thin bands. tx/ty/tz are the vertex ticks along each axis (sorted, symmetric extremes
+// at +-half size); `mod(pos, faceAxis)` may recess a vertex and/or return a colour override.
+function ticksFor(half, r, extra = []) {
+  const t = new Set([-half, half, -half + r, half - r, ...extra, ...extra.map((x) => -x)]);
+  return [...t].filter((x) => x >= -half - 1e-9 && x <= half + 1e-9).sort((a, b) => a - b);
+}
+
+function roundedBoxFaces(half, r, ticks, mod) {
+  const pos = [], nor = [], col = [];
+  const hin = half.map((h) => h - r);
+  const P = new THREE.Vector3(), C = new THREE.Vector3(), D = new THREE.Vector3();
+  const idx = [];
+  const push = (v, extra) => {
+    C.set(clamp(v.x, -hin[0], hin[0]), clamp(v.y, -hin[1], hin[1]), clamp(v.z, -hin[2], hin[2]));
+    D.copy(v).sub(C);
+    const len = D.length();
+    if (len > 1e-9) D.multiplyScalar(1 / len);
+    P.copy(C).addScaledVector(D, r);
+    pos.push(P.x, P.y, P.z); nor.push(D.x, D.y, D.z);
+    col.push(extra);
+    return pos.length / 3 - 1;
+  };
+  for (let a = 0; a < 3; a++) {
+    for (const sgn of [1, -1]) {
+      const ua = (a + 1) % 3, va = (a + 2) % 3;
+      const tu = ticks[ua], tv = ticks[va];
+      const ids = [];
+      for (let j = 0; j < tv.length; j++) {
+        const row = [];
+        for (let i = 0; i < tu.length; i++) {
+          const v = new THREE.Vector3();
+          v.setComponent(a, sgn * half[a]); v.setComponent(ua, tu[i]); v.setComponent(va, tv[j]);
+          row.push(push(v, mod ? mod(v, a, sgn) : null));
+        }
+        ids.push(row);
+      }
+      for (let j = 0; j < tv.length - 1; j++) for (let i = 0; i < tu.length - 1; i++) {
+        const a0 = ids[j][i], b0 = ids[j][i + 1], c0 = ids[j + 1][i + 1], d0 = ids[j + 1][i];
+        if (sgn > 0) idx.push(a0, b0, c0, a0, c0, d0); else idx.push(a0, c0, b0, a0, d0, c0);
+      }
+    }
+  }
+  return { pos, nor, col, idx };
+}
+
+function finishUnit(st, built, look, opts = {}) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(built.pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(built.nor, 3));
+  geo.setIndex(built.idx);
+  lookAttributes(geo, look, new Float32Array(built.pos.length / 3));
+  if (built.recolor) built.recolor(geo);
+  geo.userData.band = st.band;
+  const pos = geo.attributes.position, v = new THREE.Vector3();
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity), max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  const seen = new Set(), hp = [];
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    min.min(v); max.max(v);
+    const key = `${Math.round(v.x * 4000)},${Math.round(v.y * 4000)},${Math.round(v.z * 4000)}`;
+    if (!seen.has(key)) { seen.add(key); if (!opts.skipHull || opts.skipHull(v)) hp.push(v.x, v.y, v.z); }
+  }
+  geo.computeBoundingSphere();
+  st.geometry = geo;
+  st.hullPoints = new Float32Array(hp);
+  st.size = new THREE.Vector3().subVectors(max, min);
+  st.min = min; st.max = max;
+  return st;
+}
+
+function unitBase(type, cls, rng, label, mass) {
+  const variant = pickVariant(type, rng);
+  const ca = linear(variant.a), cb = linear(variant.b);
+  const jit = 1 + (rng() - 0.5) * 0.14, hueShift = (rng() - 0.5) * 0.03;
+  ca.offsetHSL(hueShift, 0, 0).multiplyScalar(jit); cb.offsetHSL(hueShift, 0, 0).multiplyScalar(jit);
+  const look = { ca, cb, sd: rng(), speckle: variant.speckle, rust: variant.rust, lich: type.lichen * rand(rng, 0.3, 1.2) };
+  return {
+    look, cls, type: type.key, band: variant.band, cuts: 0, shape: { cuts: [] }, noDress: true,
+    label, massKg: mass, density: type.density, restitution: type.restitution, damp: type.damp,
+    detail: 4, hullDetail: 1,
+  };
+}
+
+function generateUnit(type, cls, rng) {
+  switch (type.unit.kind) {
+    case 'brick': return makeBrick(type, cls, rng);
+    case 'cinder': return makeCinder(type, cls, rng);
+    case 'sandbag': return makeSandbag(type, cls, rng);
+    case 'crt': return makeCRT(type, cls, rng);
+  }
+}
+
+function makeBrick(type, cls, rng) {
+  const bat = rng() < 0.18;
+  const L = bat ? 0.1075 : 0.215, H = 0.065, W = 0.1025;
+  const mass = 1900 * L * H * W * rand(rng, 0.97, 1.03);
+  const st = unitBase(type, cls, rng, bat ? 'Half brick' : 'Brick', mass);
+  const r = 0.0025;
+  const half = [L / 2, H / 2, W / 2];
+  const ticks = [ticksFor(half[0], r), ticksFor(half[1], r), ticksFor(half[2], r)];
+  return finishUnit(st, roundedBoxFaces(half, r, ticks), st.look);
+}
+
+// Hollow block: filleted box for the outside, with two cores drawn as real recesses in the faces.
+function makeCinder(type, cls, rng) {
+  const half = rng() < 0.2;
+  const L = half ? 0.19 : 0.397, H = 0.194, W = 0.194;
+  const mass = (half ? 8.2 : 16) * rand(rng, 0.96, 1.04);
+  const st = unitBase(type, cls, rng, half ? 'Half block' : 'Cinder block', mass);
+  // outline with core holes, extruded along y
+  const shape = new THREE.Shape();
+  shape.moveTo(-L / 2, -W / 2); shape.lineTo(L / 2, -W / 2); shape.lineTo(L / 2, W / 2); shape.lineTo(-L / 2, W / 2); shape.closePath();
+  const cw = 0.082, ch = 0.1, web = 0.03;
+  const cores = half ? [0] : [-1, 1];
+  for (const k of cores) {
+    const cx = half ? 0 : k * 0.095;
+    const hw = half ? 0.05 : 0.06, hd = ch / 2;
+    const hole = new THREE.Path();
+    hole.moveTo(cx - hw, -hd); hole.lineTo(cx - hw, hd); hole.lineTo(cx + hw, hd); hole.lineTo(cx + hw, -hd); hole.closePath();
+    shape.holes.push(hole);
+  }
+  let g = new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1, curveSegments: 1 });
+  g.rotateX(-Math.PI / 2);          // extrusion (z) -> up (y)
+  g.translate(0, -H / 2, 0);
+  g.deleteAttribute('uv');
+  g.computeVertexNormals();
+  const pos = g.attributes.position;
+  const built = { pos: Array.from(pos.array), nor: Array.from(g.attributes.normal.array), idx: [...Array(pos.count).keys()] };
+  // hull from the outer shell only: skip the core walls
+  const hx = L / 2 + 0.003, hz = W / 2 + 0.003;
+  return finishUnit(st, built, st.look, { skipHull: (v) => Math.abs(v.x) > hx - 0.008 || Math.abs(v.z) > hz - 0.008 });
+}
+
+// A pillow: superellipsoid, gathered at the ends and flat underneath.
+function makeSandbag(type, cls, rng) {
+  const L = rand(rng, 0.52, 0.64), W = rand(rng, 0.3, 0.38), H = rand(rng, 0.11, 0.15);
+  const ex = L / 2, ey = H / 2, ez = W / 2, p = 2.5, seed = rng() * 100;
+  const volume = L * W * H * 0.5;
+  const mass = type.density * volume * rand(rng, 0.92, 1.08);
+  const st = unitBase(type, cls, rng, 'Sandbag', mass);
+  const rr = (dx, dy, dz, eyd) => Math.pow(Math.pow(Math.abs(dx / ex), p) + Math.pow(Math.abs(dy / eyd), p) + Math.pow(Math.abs(dz / ez), p), -1 / p);
+  st.shape = {
+    cuts: [], fresh: () => 0,
+    r(dx, dy, dz) {
+      let r0 = rr(dx, dy, dz, ey);
+      const xr = (dx * r0) / ex, zr = (dz * r0) / ez;
+      const eyd = ey * (1 - 0.5 * xr * xr * (0.8 + 0.2 * Math.abs(zr)));   // ends gathered
+      r0 = rr(dx, dy, dz, eyd);
+      if (dy < -1e-4) r0 = Math.min(r0, (0.86 * eyd) / -dy);               // settled flat on the ground
+      if (dy > 1e-4) r0 = Math.min(r0, (0.9 * eyd) / dy);                   // and a flattened top
+      return r0 * (1 + 0.05 * N(dx * 2.2 + seed, dy * 2.2, dz * 2.2)) + 0.0;
+    },
+  };
+  st.detail = perf.lite ? 8 : 14; st.hullDetail = 3;
+  buildStoneGeometry(st);
+  return st;
+}
+
+// CRT: a bezel box with a recessed dark glass face, and a tapering tube behind it.
+function makeCRT(type, cls, rng) {
+  const s = [0.9, 1.0, 1.1][Math.floor(rng() * 3)];              // 15", 17", 19"
+  const W = 0.4 * s, H = 0.385 * s, D1 = 0.17 * s, D2 = 0.22 * s;  // front bezel box, rear tube
+  const mass = 16 * s ** 3 * rand(rng, 0.95, 1.05);
+  const st = unitBase(type, cls, rng, `CRT monitor (${Math.round(17 * s)}")`, mass);
+  const r = 0.008 * s;
+  const sw = 0.165 * s, sh = 0.13 * s, step = 0.004;
+  const zf = D1 / 2;
+  // front box centred at z=0, tube behind it at -z
+  const half = [W / 2, H / 2, D1 / 2];
+  const ticks = [
+    ticksFor(half[0], r, [sw, sw + 0.003 * s]),
+    ticksFor(half[1], r, [sh, sh + 0.003 * s]),
+    ticksFor(half[2], r),
+  ];
+  const screen = (v, a, sgn) => a === 2 && sgn > 0 && Math.abs(v.x) <= sw + 1e-6 && Math.abs(v.y) <= sh + 1e-6;
+  const built = roundedBoxFaces(half, r, ticks, (v, a, sgn) => screen(v, a, sgn) ? { dz: -step, col: 'glass' } : null);
+  // apply recess + colours
+  const screenIdx = [];
+  for (let i = 0; i < built.col.length; i++) if (built.col[i] && built.col[i].col === 'glass') { built.pos[i * 3 + 2] += -step; screenIdx.push(i); }
+  built.recolor = (geo) => {
+    const A = geo.attributes.aColA, B = geo.attributes.aColB, S = geo.attributes.aStone;
+    for (const i of screenIdx) { A.setXYZ(i, 0.006, 0.008, 0.007); B.setXYZ(i, 0.012, 0.015, 0.013); S.setXYZ(i, 0.5, 0, 0, 0); }
+  };
+  // rear case: boxy and flush with the bezel on top and bottom for half its depth, then tapering to the neck
+  const rear = (() => {
+    const wA = W * 0.92, yb = -H / 2 + 0.0005, yt = H / 2 - 0.002, wB = W * 0.45, hB = H * 0.5;
+    const z0 = -D1 / 2, z1 = z0 - D2 * 0.5, z2 = z0 - D2;
+    const ring = (w, top, z) => [[-w / 2, yb, z], [w / 2, yb, z], [w / 2, top, z], [-w / 2, top, z]];
+    const v = [...ring(wA, yt, z0), ...ring(wA, yt, z1), ...ring(wB, yb + hB, z2)];
+    const faces = [[4, 5, 1, 0], [5, 6, 2, 1], [6, 7, 3, 2], [7, 4, 0, 3], [8, 9, 5, 4], [9, 10, 6, 5], [10, 11, 7, 6], [11, 8, 4, 7], [11, 10, 9, 8]];
+    return { v, faces };
+  })();
+  const nrm = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  for (const f of rear.faces) {
+    const q = f.map((i) => new THREE.Vector3(...rear.v[i]));
+    e1.subVectors(q[1], q[0]); e2.subVectors(q[3], q[0]); nrm.crossVectors(e1, e2).normalize();
+    const flip = nrm.dot(new THREE.Vector3(q[0].x, q[0].y, q[0].z - (-D1 / 2 - D2 / 2))) < 0;
+    const base = built.pos.length / 3;
+    for (const p of q) { built.pos.push(p.x, p.y, p.z); const n = flip ? nrm.clone().negate() : nrm; built.nor.push(n.x, n.y, n.z); built.col.push(null); }
+    if (!flip) built.idx.push(base, base + 1, base + 2, base, base + 2, base + 3); else built.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  }
+  // centre on the centre of mass: front box (heavy glass) and tube by volume
+  const vf = W * H * D1 * 1.6, vt = D2 * W * 0.92 * H * 0.5 * 0.45 * 0.8;
+  const cz = (vt * (-D1 / 2 - D2 * 0.4)) / (vf + vt);
+  for (let i = 2; i < built.pos.length; i += 3) built.pos[i] -= cz;
+  // yaw so the screen faces +z, with the monitor sitting on its base
+  return finishUnit(st, built, st.look);
 }
 
 function lookAttributes(geo, look, freshArr) {
@@ -378,7 +657,7 @@ export function dressStone(st, n, h) {
   const lmin = fmin.clone().sub(c), lmax = fmax.clone().sub(c);
   const flake = {
     geometry: geo, hullPoints: new Float32Array(hp), size: fsize, min: lmin, max: lmax,
-    cls: 'shard', type: st.type, band: st.band, look: st.look, centroid: c, shape: null,
+    cls: 'shard', type: st.type, band: st.band, look: st.look, centroid: c, shape: null, density: st.density, restitution: st.restitution,
   };
   return { removed: frac, flake };
 }

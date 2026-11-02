@@ -55,7 +55,9 @@ export class Physics {
       .setCanSleep(true);
     const body = this.world.createRigidBody(bd);
     let cd = RAPIER.ColliderDesc.convexHull(stone.hullPoints);
-    cd.setDensity(2600).setFriction(friction).setRestitution(0.03);
+    if (stone.massKg) cd.setMass(stone.massKg); else cd.setDensity(stone.density ?? 2600);
+    cd.setFriction(friction).setRestitution(stone.restitution ?? 0.03);
+    if (stone.damp) { body.setLinearDamping(stone.damp[0]); body.setAngularDamping(stone.damp[1]); }
     const collider = this.world.createCollider(cd, body);
     if (stone.cls === 'hearting') body.enableCcd(true);
     stone.body = body; stone.collider = collider; stone.friction = friction;
@@ -71,7 +73,7 @@ export class Physics {
     const old = stone.collider;
     this.bodies.delete(old.handle);
     this.world.removeCollider(old, false);
-    cd.setDensity(2600).setFriction(stone.friction).setRestitution(0.03);
+    cd.setDensity(stone.density ?? 2600).setFriction(stone.friction).setRestitution(stone.restitution ?? 0.03);
     stone.collider = this.world.createCollider(cd, stone.body);
     this.bodies.set(stone.collider.handle, stone);
     stone.mass = stone.collider.mass(); // body mass updates on the next step

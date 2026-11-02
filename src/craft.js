@@ -191,7 +191,7 @@ export class Craft {
     if (this.tool !== 'hammer' || it.held || this.strike) return;
     const hit = it.castPointer();
     const stone = hit && hit.collider ? this.game.physics.bodies.get(hit.collider.handle) : null;
-    if (!stone || !stone.shape || Math.max(stone.size.x, stone.size.z) < 0.05) { this.clearHover(); this.hammer.visible = false; this.game.ui.hammerInfo(null); return; }
+    if (!stone || !stone.shape || stone.noDress || Math.max(stone.size.x, stone.size.z) < 0.05) { this.clearHover(); this.hammer.visible = false; this.game.ui.hammerInfo(null); return; }
     if (stone !== this.hover) { this.clearHover(); this.hover = stone; stone.mesh.material = this.previewMat; }
     const b = stone.body, t = b.translation(), r = b.rotation();
     _q.set(r.x, r.y, r.z, r.w);
