@@ -101,3 +101,9 @@ courses staggered and low; tall mixed-size stacks of CRTs will topple, as they w
 Each tree is grown from a trunk with buttress flare, limbs, branches and twigs, carrying painted leaf-cluster cards
 (maple, birch, conifer sprig) that follow the season model. Bark has furrows and lichen (birch: papery white with dark
 lenticels). Trees beyond ~60 m use cheaper versions.
+
+## First-time tutorial
+
+On a first visit a small card walks you through the controls in ten steps (look, zoom, lift, turn, nudge, pass through,
+set down, undo, hammer, everything else). It notices when you actually do each thing and moves on; Skip and the × are
+always there. Press `?` or use the Controls button to replay it, or open the game with `?tutorial=1`.

@@ -21,6 +21,7 @@ import { Interaction } from './interaction.js';
 import { SoundScape } from './audio.js';
 import { analyseWall } from './analysis.js';
 import { makeSteps } from './tutorial.js';
+import { Coach } from './coach.js';
 import { UI } from './ui.js';
 import { mulberry32, rand } from './noise.js';
 
@@ -523,6 +524,7 @@ class Game {
   action(a) {
     if (a === 'hearting') this.pourHearting();
     else if (a === 'cart') this.moreStone();
+    else if (a === 'coach') { if (this.coach) this.coach.active ? this.coach.end() : this.coach.start(); }
     else if (a === 'weather') this.weather();
     else if (a === 'time') {
       const order = ['morning', 'afternoon', 'golden'];
@@ -845,6 +847,7 @@ class Game {
     this.grade.uniforms.uTime.value = t % 10;
 
     pf?.end('scene');
+    if (this.coach) this.coach.update();
     if (t - this.lastAnalysis > 1.0) {
       pf?.mark('analysis');
       this.lastAnalysis = t;
@@ -1035,6 +1038,8 @@ async function begin(audio) {
   audio.start(game.env.audio, region).catch((e) => console.warn('audio', e));
   window.addEventListener('pointerdown', () => audio.ctx && audio.ctx.resume(), { once: true });
   game.run();
+  game.coach = new Coach(game);
+  if (Coach.shouldAutoStart()) setTimeout(() => game.coach.start(), 3200);
   const url = new URL(location.href);
   for (const [k, v] of Object.entries({ stone: cfg.stone, mode: cfg.mode, len: cfg.length, time: cfg.time, q: cfg.quality })) url.searchParams.set(k, v);
   history.replaceState(null, '', url);

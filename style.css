@@ -182,3 +182,22 @@ h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: 
 }
 
 .subhead { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); padding: 16px 12px 6px; border-bottom: 1px solid var(--line); }
+
+/* first-run controls tutorial */
+#coach { position: absolute; left: 24px; bottom: 132px; width: min(350px, calc(100vw - 48px)); padding: 14px 16px 12px; border-radius: 14px; background: var(--glass-2); border: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 40px rgba(0,0,0,.35); transition: border-color .4s, opacity .4s; }
+#coach.ok { border-color: rgba(233,196,106,.7); }
+#coach h3 { margin: 8px 0 6px; font-family: var(--serif); font-weight: 500; font-size: 22px; }
+#coach .c-body { margin: 0 0 8px; font-size: 13.5px; line-height: 1.75; color: var(--ink); }
+#coach .c-aside { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); font-family: var(--serif); font-style: italic; }
+#coach .c-top { display: flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+#coach .c-dots { display: flex; gap: 4px; flex: 1; }
+#coach .c-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.18); }
+#coach .c-dots i.d { background: rgba(233,196,106,.7); }
+#coach .c-dots i.c { background: var(--ink); }
+#coach .c-x { border: 0; background: none; color: var(--ink-2); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+#coach .c-foot { display: flex; align-items: center; gap: 8px; }
+#coach .c-foot button { border: 1px solid var(--line); background: rgba(255,255,255,.05); color: var(--ink-2); border-radius: 999px; padding: 4px 13px; font-size: 12px; cursor: pointer; }
+#coach .c-foot button:hover:not(:disabled) { color: var(--ink); background: rgba(255,255,255,.1); }
+#coach .c-foot button:disabled { opacity: .35; cursor: default; }
+#coach .c-wait { flex: 1; font-size: 12px; color: rgba(233,196,106,.95); text-align: center; }
+@media (max-width: 760px) { #coach { left: 10px; bottom: 150px; } }
