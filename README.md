@@ -79,3 +79,7 @@ Time passes slowly and continuously. The trees follow a leaf-senescence model (p
 ## Performance readout
 
 Press `` ` `` (backtick) or add `?perf=1` to see frame time split into physics, scene upkeep, analysis and render submit (CPU), GPU render time where the browser allows (Chrome/Edge on desktop; Safari doesn't expose it), draw calls, triangles and resolution.
+
+## Turning a stone in your hands
+
+While carrying a stone, **right-drag** (or hold **Alt/Option** and move the pointer, handy on a trackpad) to tumble it freely, like turning it over in your hands. The stone stays where it is while you turn. Hold **Ctrl** for a flat spin about the vertical, **Shift** for fine control. Q/E/R/F still step-turn, and `V` examines it up close.

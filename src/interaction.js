@@ -52,8 +52,11 @@ export class Interaction {
 
   setPointer(e) {
     const r = this.el.getBoundingClientRect();
-    this.pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-    this.pointerPx = { x: e.clientX, y: e.clientY };
+    // pointer travel spent turning the stone doesn't count as carrying it anywhere
+    const o = this._po || (this._po = { x: 0, y: 0 });
+    const cx = e.clientX - o.x, cy = e.clientY - o.y;
+    this.pointer.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    this.pointerPx = { x: cx, y: cy };
   }
 
   ray() {
@@ -110,7 +113,32 @@ export class Interaction {
     }
   }
 
+  // Turn the held stone in your hands: right-drag, or hold Alt/Option and move the pointer.
+  // Ctrl locks the turn to a flat spin (about the vertical), Shift makes it fine.
+  turning(e) {
+    return !!this.held && !this.placing && !this.examining && ((e.buttons & 2) !== 0 || this.keys.has('alt'));
+  }
+
+  turnBy(e) {
+    const dx = e.movementX || 0, dy = e.movementY || 0;
+    if (!dx && !dy) return;
+    const o = this._po || (this._po = { x: 0, y: 0 });
+    o.x += dx; o.y += dy;
+    const k = (e.shiftKey ? 0.0025 : 0.009);
+    const cam = this.game.camera.matrixWorld;
+    const camRight = new THREE.Vector3().setFromMatrixColumn(cam, 0);
+    const camUp = new THREE.Vector3().setFromMatrixColumn(cam, 1);
+    const flat = e.ctrlKey || this.keys.has('control');
+    this.targetQ.premultiply(new THREE.Quaternion().setFromAxisAngle(flat ? UP : camUp, dx * k));
+    if (!flat) this.targetQ.premultiply(new THREE.Quaternion().setFromAxisAngle(camRight, dy * k));
+    this.targetQ.normalize();
+    const now = performance.now();
+    if (!this._turnSnd || now - this._turnSnd > 140) { this._turnSnd = now; this.game.audio.scrape(0.12); }
+  }
+
   onMove(e) {
+    if (this.turning(e)) { this.turnBy(e); this.el.style.cursor = 'move'; return; }
+    if (this.held && !this.examining && this.el.style.cursor === 'move') this.el.style.cursor = 'grabbing';
     if (this.held && this.examining) {
       const dx = e.movementX || 0, dy = e.movementY || 0;
       const camRight = new THREE.Vector3().setFromMatrixColumn(this.game.camera.matrixWorld, 0);
@@ -253,6 +281,7 @@ export class Interaction {
 
   pick(stone) {
     this.game.pushUndo({ type: 'move', held: stone });
+    this._po = { x: 0, y: 0 };
     this.held = stone;
     this.placing = false;
     this.effort = 0;
@@ -267,7 +296,8 @@ export class Interaction {
     this.target.copy(this.smoothTarget);
     this.liftT = 0;
     this.nudge.set(0, 0, 0);
-    this.game.controls.mouseButtons.LEFT = -1; // left is for the stone now; right-drag still orbits
+    this.game.controls.mouseButtons.LEFT = -1; // left carries the stone; right-drag turns it
+    this.game.controls.mouseButtons.RIGHT = -1;
     this.el.style.cursor = 'grabbing';
     this.game.audio.scrape(0.35);
     this.game.ui.hoverStone(null);
@@ -322,6 +352,7 @@ export class Interaction {
     this.lastPlaced = s;
     if (this.game.craft) this.game.craft.clearFit(s);
     this.game.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    this.game.controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
     this.el.style.cursor = 'default';
     this.game.stats.placed++;
     this.game.ui.setHolding(null);
