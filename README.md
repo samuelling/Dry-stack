@@ -87,3 +87,17 @@ While carrying a stone, **right-drag** (or hold **Alt/Option** and move the poin
 ## Passing through while you position
 
 Hold **G** while carrying a stone and it becomes a faint amber ghost that passes through the wall, so you can bring it to a gap, turn it and judge the fit without shoving anything. Let go of G and it turns solid as soon as it is clear. You can't set it down while it is still inside the wall.
+
+## Salvage yard
+
+Bonus materials with real dimensions, masses and surface friction, each a rigid convex body:
+red bricks (215x65x102 mm, ~2.7 kg), cinder blocks (390x190x190 mm, ~16 kg; the hollow cores are visual only),
+sandbags (~20 kg, high grip, no bounce) and old CRT monitors (15-19 inch, ~11-22 kg, slick plastic).
+The hammer does nothing to them. Honest caveats: sandbags are rigid pillows rather than slumping bags, so keep
+courses staggered and low; tall mixed-size stacks of CRTs will topple, as they would in life.
+
+## Trees
+
+Each tree is grown from a trunk with buttress flare, limbs, branches and twigs, carrying painted leaf-cluster cards
+(maple, birch, conifer sprig) that follow the season model. Bark has furrows and lichen (birch: papery white with dark
+lenticels). Trees beyond ~60 m use cheaper versions.

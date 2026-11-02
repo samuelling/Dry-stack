@@ -272,8 +272,8 @@ export function makeTreeTemplate(seed, { palette, kind = 'maple', height = [9, 1
     }
   }
   // leaf cards
-  const perAnchor = Math.max(1, Math.round((lod ? 3 : 5) * detail));
-  const cardW = P.card * sc * (lod ? 1.9 : 1) * (kind === 'birch' ? 1 : 1.05);
+  const perAnchor = Math.max(1, Math.round((lod ? 3 : 7) * Math.max(detail, 0.7)));
+  const cardW = P.card * sc * (lod ? 2.1 : 1.3) * (kind === 'birch' ? 1 : 1.05);
   const add = (c) => {
     const outward = V3().subVectors(c, crownC);
     const dist = Math.min(1.15, outward.length() / crownR);
@@ -289,7 +289,7 @@ export function makeTreeTemplate(seed, { palette, kind = 'maple', height = [9, 1
   };
   const spread = (kind === 'birch' ? 0.55 : 0.8) * sc * (lod ? 1.5 : 1);
   for (const a of anchors) for (let k = 0; k < perAnchor; k++) add(a.p.clone().addScaledVector(randUnit(rng), spread * rand(rng, 0.2, 1)).addScaledVector(a.d, rand(rng, -0.1, 0.5) * spread));
-  const nFill = Math.round((lod ? 40 : 90) * detail);
+  const nFill = Math.round((lod ? 50 : 130) * Math.max(detail, 0.7));
   for (let k = 0; k < nFill; k++) {
     const d = randUnit(rng);
     add(crownC.clone().add(V3(d.x * crownR * rand(rng, 0.35, 1.0), d.y * crownR * 0.75 * rand(rng, 0.3, 1.0), d.z * crownR * rand(rng, 0.35, 1.0))));
