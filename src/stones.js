@@ -160,7 +160,7 @@ STONE_TYPES.crt = {
     { w: 2, a: 0x5f6163, b: 0x6e7072, speckle: 0.0, band: 0.0, rust: 0.0 },   // grey
     { w: 1, a: 0x1c1d1f, b: 0x2a2b2d, speckle: 0.0, band: 0.0, rust: 0.0 },   // black
   ],
-  lichen: 0.0, roughness: 0.42, friction: 0.4, restitution: 0.12, density: 1100, bedFreq: 0, bedAmt: 0, pits: 0.0, grain: 0.05, sharpMix: 0.0,
+  lichen: 0.0, smooth: 1, roughness: 0.42, friction: 0.4, restitution: 0.12, density: 1100, bedFreq: 0, bedAmt: 0, pits: 0.0, grain: 0.05, sharpMix: 0.0,
   lichenTint: [0x8f9a74, 0xb0b59a, 0xc09040], copes: false, sound: 0.6,
 };
 
@@ -693,7 +693,8 @@ const LITE_COLOR = `#include <color_fragment>
     col = mix(col, col * vec3(1.2, 0.85, 0.62), smoothstep(0.1, 0.7, n1) * rust * 0.6);
     vec3 freshCol = mix(vColB, vec3(dot(vColB, vec3(0.333))), 0.25) * 1.18;
     col = mix(col, freshCol, fresh * 0.85);
-    gLichen = lm; gHeight = 0.0; gRoughAdd = lm * 0.08 + fresh * 0.05;
+    col = mix(col, mix(vColA, vColB, 0.5) * (0.97 + 0.06 * n1), uSmooth);
+    gLichen = lm * (1.0 - uSmooth); gHeight = 0.0; gRoughAdd = lm * 0.08 + fresh * 0.05;
     gCutLine = 0.0;
     if (uCutOn > 0.5) {
       float sd = dot(uCut.xyz, vObjPos) - uCut.w;
@@ -721,6 +722,7 @@ export function makeStoneMaterial(typeKey) {
     uBedAmt: { value: t.bedAmt },
     uPits: { value: t.pits },
     uGrain: { value: t.grain },
+    uSmooth: { value: t.smooth ?? 0 },
     uSharpMix: { value: t.sharpMix },
     uLichA: { value: lt[0] }, uLichB: { value: lt[1] }, uLichC: { value: lt[2] },
     uRough: { value: t.roughness },
@@ -756,7 +758,7 @@ export function makeStoneMaterial(typeKey) {
         ${NOISE_GLSL}
         ${BUMP_GLSL}
         ${CAUSTIC_GLSL}
-        uniform float uBedFreq, uBedAmt, uPits, uGrain, uSharpMix, uRough, uHighlight, uWet;
+        uniform float uSmooth; uniform float uBedFreq, uBedAmt, uPits, uGrain, uSharpMix, uRough, uHighlight, uWet;
         uniform vec3 uLichA, uLichB, uLichC;
         uniform vec4 uCut; uniform float uCutOn;
         varying vec3 vObjPos; varying vec3 vColA; varying vec3 vColB; varying vec4 vStone;
@@ -827,6 +829,9 @@ export function makeStoneMaterial(typeKey) {
                   + gLichen * 0.0005
                   + fresh * abs(snoise(vObjPos * 55.0 + 4.0)) * 0.0007 * lodMid;
           gRoughAdd = gLichen * 0.08 + pit * 0.05 + fresh * 0.05;
+          // moulded or painted units: clean, even colour with no stone texture
+          col = mix(col, mix(vColA, vColB, 0.5) * (0.97 + 0.06 * n1), uSmooth);
+          gHeight *= 1.0 - uSmooth; gLichen *= 1.0 - uSmooth;
           // hammer cut preview
           gCutLine = 0.0;
           if (uCutOn > 0.5) {
