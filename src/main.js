@@ -952,7 +952,7 @@ function seg(id, key) {
   });
 }
 
-const ROCK_TINT = { newengland: '#8a8782', pennsylvania: '#9b6e4f', cotswold: '#c4a86f', welsh: '#586270', yorkshire: '#6d6558', aran: '#b7b6ac', brick: '#a04a35', cinder: '#8d8d8a', sandbag: '#a8935f', crt: '#c9c1ab' };
+const ROCK_TINT = { newengland: '#8a8782', pennsylvania: '#9b6e4f', cotswold: '#c4a86f', welsh: '#586270', yorkshire: '#6d6558', aran: '#b7b6ac', brick: '#a04a35', cinder: '#8d8d8a', sandbag: '#a8935f', crt: '#c9c1ab', doll: '#e3c4ad' };
 
 function buildMenu() {
   const wrap = $('#stoneCards');

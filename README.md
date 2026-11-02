@@ -93,8 +93,9 @@ Hold **G** while carrying a stone and it becomes a faint amber ghost that passes
 Bonus materials with real dimensions, masses and surface friction, each a rigid convex body:
 red bricks (215x65x102 mm, ~2.7 kg), cinder blocks (390x190x190 mm, ~16 kg; the hollow cores are visual only),
 sandbags (~20 kg, high grip, no bounce) and old CRT monitors (15-19 inch, ~11-22 kg, slick plastic).
+Old doll heads (about 0.2 kg, glossy and round, with a flat neck so they can stand; a few are mannequins at 1 kg or more) have faces painted in the shader, so they stay crisp at any size.
 The hammer does nothing to them. Honest caveats: sandbags are rigid pillows rather than slumping bags, so keep
-courses staggered and low; tall mixed-size stacks of CRTs will topple, as they would in life.
+courses staggered and low; tall mixed-size stacks of CRTs will topple, as they would in life. Heads are rigid hulls with some rolling resistance: stand them on their necks and they hold, lay them on their sides and they roll.
 
 ## Trees
 

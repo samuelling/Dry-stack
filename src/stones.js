@@ -164,6 +164,23 @@ STONE_TYPES.crt = {
   lichenTint: [0x8f9a74, 0xb0b59a, 0xc09040], copes: false, sound: 0.6,
 };
 
+STONE_TYPES.doll = {
+  key: 'doll', group: 'salvage', envKey: 'newengland',
+  name: 'Doll Heads', region: 'Attic, estate sale and flea market',
+  blurb: 'Porcelain and vinyl doll heads, a hundred-odd grams each, with the odd mannequin among them. Smooth, round and slightly slippery, so they roll if given half a chance. Stand each one on its neck and keep the faces turned out. Whatever is built from them will watch you work.',
+  unit: { kind: 'doll' }, countScale: 2.2, layout: 0.55,
+  shape: SALVAGE_SHAPE,
+  variants: [
+    { w: 4, a: 0xc8a48d, b: 0x3a2412, speckle: 0.0, band: 0.0, rust: 0.0 },   // bisque, brown hair
+    { w: 3, a: 0xcf9b86, b: 0xb08a4a, speckle: 0.0, band: 0.0, rust: 0.0 },   // pink vinyl, blond
+    { w: 2, a: 0xb3a07d, b: 0x1c1410, speckle: 0.0, band: 0.0, rust: 0.0 },   // yellowed, black hair
+    { w: 2, a: 0x8a5a3e, b: 0x140d09, speckle: 0.0, band: 0.0, rust: 0.0 },
+    { w: 1, a: 0xb98466, b: 0x6e3a20, speckle: 0.0, band: 0.0, rust: 0.0 },
+  ],
+  lichen: 0.0, smooth: 1, face: 1, roughness: 0.32, friction: 0.5, restitution: 0.18, density: 1500, damp: [0.2, 1.1], bedFreq: 0, bedAmt: 0, pits: 0.0, grain: 0.05, sharpMix: 0.0,
+  lichenTint: [0x8f9a74, 0xb0b59a, 0xc09040], copes: false, sound: 1.5,
+};
+
 // Size classes (meters): [length, width(into-wall depth), height] ranges before type scaling.
 export const SIZE_CLASSES = {
   foundation: { L: [0.5, 0.72], W: [0.32, 0.46], H: [0.2, 0.3], detail: 22 },
@@ -416,6 +433,7 @@ function generateUnit(type, cls, rng) {
     case 'cinder': return makeCinder(type, cls, rng);
     case 'sandbag': return makeSandbag(type, cls, rng);
     case 'crt': return makeCRT(type, cls, rng);
+    case 'doll': return makeDoll(type, cls, rng);
   }
 }
 
@@ -534,6 +552,37 @@ function makeCRT(type, cls, rng) {
   for (let i = 2; i < built.pos.length; i += 3) built.pos[i] -= cz;
   // yaw so the screen faces +z, with the monitor sitting on its base
   return finishUnit(st, built, st.look);
+}
+
+// Doll head: an egg-shaped skull with a nose and a short neck cut flat, so it can stand upright.
+// The face (eyes, brows, lips, hair) is painted in the shader from the object-space position.
+function makeDoll(type, cls, rng) {
+  const mannequin = rng() < 0.07;
+  const sc = mannequin ? rand(rng, 1.7, 1.95) : rand(rng, 0.88, 1.28);
+  const mass = (mannequin ? 0.22 : 0.2) * sc ** 3 * rand(rng, 0.9, 1.1);
+  const st = unitBase(type, cls, rng, mannequin ? 'Mannequin head' : 'Doll head', mass);
+  st.look.speckle = sc;                       // the shader reads the head scale from here
+  const ax = 0.052, ay = 0.062, az = 0.058, seed = rng() * 100;
+  const neckR = 0.023, neckY = 0.082;
+  st.shape = {
+    cuts: [], fresh: () => 0,
+    r(dx, dy, dz) {
+      const q = (ex, ey, ez) => Math.pow(dx * dx / (ex * ex) + dy * dy / (ey * ey) + dz * dz / (ez * ez), -0.5);
+      let r0 = q(ax, ay, az);
+      const yn = Math.max(0, -dy * r0 / ay);
+      r0 = q(ax * (1 - 0.3 * yn), ay, az * (1 - 0.12 * yn));                  // jaw narrows toward the chin
+      if (dz > 0) r0 *= 1 + 0.07 * Math.exp(-((dx * r0 / 0.011) ** 2 + ((dy * r0 + 0.006) / 0.016) ** 2)) * Math.min(1, dz * 2);   // nose
+      if (dy < -0.25) {
+        const hxz = Math.hypot(dx, dz);
+        const rn = Math.min(neckR / Math.max(hxz, 1e-4), neckY / -dy);       // short neck, flat at the bottom
+        r0 = Math.max(r0, rn);
+      }
+      return r0 * sc * (1 + 0.006 * N(dx * 3 + seed, dy * 3, dz * 3));
+    },
+  };
+  st.detail = perf.lite ? 9 : 16; st.hullDetail = 3;
+  buildStoneGeometry(st);
+  return st;
 }
 
 function lookAttributes(geo, look, freshArr) {
@@ -675,6 +724,48 @@ export const sharedUniforms = {
   uWet: { value: 0 },
 };
 
+
+// Painted doll face, in head units (about 0.1 m across), looking along +z.
+const FACE_GLSL = `
+  vec3 faceColor(vec3 p, vec3 skin, vec3 hair, float sc, float seed, vec3 base) {
+    vec3 q = p / max(sc, 0.2);
+    vec3 col = skin;
+    float fz = smoothstep(0.0, 0.018, q.z);
+    float hairLine = 0.031 + 2.2 * q.x * q.x;
+    float hairAmt = max(smoothstep(-0.002, 0.003, q.y - hairLine), smoothstep(0.003, -0.002, q.z) * step(-0.058, q.y));
+    float face = fz * (1.0 - hairAmt);
+    vec3 irisCol = fract(seed * 5.17) < 0.34 ? vec3(0.03, 0.09, 0.35) : (fract(seed * 5.17) < 0.67 ? vec3(0.07, 0.035, 0.012) : vec3(0.04, 0.17, 0.06));
+    float missing = step(0.92, fract(seed * 7.31)), side = step(0.5, fract(seed * 3.7)) * 2.0 - 1.0;
+    for (int k = 0; k < 2; k++) {
+      float sx = k == 0 ? -1.0 : 1.0;
+      vec2 d = vec2(q.x - sx * 0.021, q.y - 0.010);
+      float r = length(d);
+      float gone = missing * step(0.0, sx * side);
+      col = mix(col, vec3(0.75, 0.72, 0.68), smoothstep(0.0076, 0.0068, r) * face);
+      col = mix(col, irisCol, smoothstep(0.0046, 0.004, r) * face);
+      col = mix(col, vec3(0.004), smoothstep(0.0023, 0.0019, r) * face);
+      col = mix(col, vec3(0.004), smoothstep(0.0078, 0.0068, r) * face * gone);
+      col = mix(col, vec3(0.03, 0.015, 0.01), smoothstep(0.0007, 0.0002, abs(r - 0.0081)) * step(-0.002, d.y) * face);
+      // brow
+      float bx = q.x - sx * 0.021;
+      float by = q.y - (0.0275 + 0.25 * bx * sx * 0.0 - 0.9 * bx * bx);
+      col = mix(col, hair * 0.7, smoothstep(0.0016, 0.0009, abs(by)) * smoothstep(0.011, 0.009, abs(bx)) * face);
+      // cheek blush
+      float cr = length(vec2(q.x - sx * 0.031, q.y + 0.014));
+      col = mix(col, vec3(0.5, 0.16, 0.15), smoothstep(0.014, 0.0, cr) * 0.38 * face);
+    }
+    // lips
+    vec2 lp = vec2(q.x / 0.0135, (q.y + 0.0285 + 0.9 * q.x * q.x) / 0.0042);
+    col = mix(col, vec3(0.42, 0.035, 0.05), smoothstep(1.0, 0.82, length(lp)) * face);
+    col = mix(col, vec3(0.25, 0.01, 0.02), smoothstep(0.06, 0.02, abs(lp.y)) * smoothstep(1.0, 0.8, abs(lp.x)) * face);
+    // nostrils
+    col = mix(col, col * 0.55, smoothstep(0.0022, 0.0012, length(vec2(abs(q.x) - 0.0055, q.y + 0.0105))) * face);
+    // hair, with a little strand variation
+    float strands = 0.8 + 0.35 * snoise(vec3(q.x * 90.0, q.y * 18.0, q.z * 90.0));
+    col = mix(col, hair * strands, hairAmt);
+    return col;
+  }`;
+
 // Cheap stone shading for phones: two noise lookups, no bump, no fine grain.
 const LITE_COLOR = `#include <color_fragment>
   {
@@ -694,6 +785,7 @@ const LITE_COLOR = `#include <color_fragment>
     vec3 freshCol = mix(vColB, vec3(dot(vColB, vec3(0.333))), 0.25) * 1.18;
     col = mix(col, freshCol, fresh * 0.85);
     col = mix(col, mix(vColA, vColB, 0.5) * (0.97 + 0.06 * n1), uSmooth);
+    if (uFace > 0.5) col = faceColor(vObjPos, vColA, vColB, vStone.y, vStone.x, col);
     gLichen = lm * (1.0 - uSmooth); gHeight = 0.0; gRoughAdd = lm * 0.08 + fresh * 0.05;
     gCutLine = 0.0;
     if (uCutOn > 0.5) {
@@ -723,6 +815,7 @@ export function makeStoneMaterial(typeKey) {
     uPits: { value: t.pits },
     uGrain: { value: t.grain },
     uSmooth: { value: t.smooth ?? 0 },
+    uFace: { value: t.face ?? 0 },
     uSharpMix: { value: t.sharpMix },
     uLichA: { value: lt[0] }, uLichB: { value: lt[1] }, uLichC: { value: lt[2] },
     uRough: { value: t.roughness },
@@ -756,9 +849,10 @@ export function makeStoneMaterial(typeKey) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         ${NOISE_GLSL}
+        ${FACE_GLSL}
         ${BUMP_GLSL}
         ${CAUSTIC_GLSL}
-        uniform float uSmooth; uniform float uBedFreq, uBedAmt, uPits, uGrain, uSharpMix, uRough, uHighlight, uWet;
+        uniform float uSmooth, uFace; uniform float uBedFreq, uBedAmt, uPits, uGrain, uSharpMix, uRough, uHighlight, uWet;
         uniform vec3 uLichA, uLichB, uLichC;
         uniform vec4 uCut; uniform float uCutOn;
         varying vec3 vObjPos; varying vec3 vColA; varying vec3 vColB; varying vec4 vStone;
@@ -831,6 +925,7 @@ export function makeStoneMaterial(typeKey) {
           gRoughAdd = gLichen * 0.08 + pit * 0.05 + fresh * 0.05;
           // moulded or painted units: clean, even colour with no stone texture
           col = mix(col, mix(vColA, vColB, 0.5) * (0.97 + 0.06 * n1), uSmooth);
+          if (uFace > 0.5) col = faceColor(vObjPos, vColA, vColB, vStone.y, vStone.x, col);
           gHeight *= 1.0 - uSmooth; gLichen *= 1.0 - uSmooth;
           // hammer cut preview
           gCutLine = 0.0;
